@@ -1,0 +1,12 @@
+.git/
+.github/
+.codex/
+runtime_data/
+outputs/
+scripts/
+node_modules/
+server.mjs
+start-dashboard.ps1
+por.traineddata
+*.log
+
