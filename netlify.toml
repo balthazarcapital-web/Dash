@@ -1,5 +1,5 @@
 [build]
-  command = "mkdir -p public && cp index.html styles.css data.js quotes.js works.js app.js web-demo.js public/"
+  command = "mkdir -p public && cp index.html styles.css data.js quotes.js works.js app.js web-demo.js public/ && mkdir -p public/comparativo-cli-inova && cp comparativo-cli-inova/index.html public/comparativo-cli-inova/"
   publish = "public"
 
 [[headers]]
