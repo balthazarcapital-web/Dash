@@ -73,7 +73,8 @@ window.DASHBOARD_CLIENTS = {
       {date:"2026-07-31",requester:"Compras Absolutta",description:"Valdecir - Mão de Obra",category:"Civil",subCategory:"Serviços",number:"7",status:"Cotação",delivery:"",supplier:"",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""},
       {date:"2026-07-31",requester:"Compras Absolutta",description:"CNO da obra",category:"Civil",subCategory:"Serviços",number:"8",status:"Cotação",delivery:"",supplier:"",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""},
       {date:"2026-08-06",requester:"Compras Absolutta",description:"2 manilhas 80 por 1m",category:"Civil",subCategory:"Material",number:"9",status:"Aprovado",delivery:"2026-08-21",supplier:"Adriaço",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""},
-      {date:"2026-08-11",requester:"Compras Absolutta",description:"Caçamba solicitada",category:"Locação",subCategory:"Caçamba",number:"10",status:"Aprovado",delivery:"2026-08-12",supplier:"Transdetritos",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""}
+      {date:"2026-08-11",requester:"Compras Absolutta",description:"Caçamba solicitada",category:"Locação",subCategory:"Caçamba",number:"10",status:"Aprovado",delivery:"2026-08-12",supplier:"Transdetritos",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""},
+      {date:"2026-08-20",requester:"Compras Absolutta",description:"Caçamba - Juliano Perneta 165",category:"Locação",subCategory:"",number:"11",status:"Cotação",delivery:"",supplier:"",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""}
     ]
   }
 };

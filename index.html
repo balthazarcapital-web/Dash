@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=20260819-8">
+    <link rel="stylesheet" href="styles.css?v=1.1.6">
 </head>
 <body>
   <div class="app-shell">
@@ -23,7 +23,7 @@
       </label>
       <nav class="nav" aria-label="Navegação principal">
         <a class="nav-link active" href="#overview" data-section="overview"><span data-icon="grid"></span>Visão geral</a>
-        <a class="nav-link" href="#work" data-section="work"><span data-icon="building"></span>Obra</a>
+        <a class="nav-link" href="#work" data-section="work"><span data-icon="building"></span>Obras</a>
         <a class="nav-link" href="#orders" data-section="orders"><span data-icon="clipboard"></span>Pedidos <b id="nav-order-count">0</b></a>
         <a class="nav-link" href="#quotes" data-section="quotes"><span data-icon="layers"></span>Cotações <b id="nav-quote-count">0</b></a>
         <a class="nav-link" href="#fiscal" data-section="fiscal"><span data-icon="receipt"></span>Notas fiscais <b id="nav-nf-count">0</b></a>
@@ -32,6 +32,7 @@
       <div class="sidebar-footer">
         <span class="source-dot" id="source-dot"></span>
         <div><strong id="source-label">Carregando base</strong><small id="source-detail">Google Sheets</small></div>
+        <span class="version-badge" data-dash-version>v1.1.6</span>
       </div>
     </aside>
     <button class="sidebar-overlay" id="sidebar-overlay" aria-label="Fechar menu" hidden></button>
@@ -144,7 +145,7 @@
 
         <div data-work-tab-panel="overview">
         <section class="work-kpis" aria-label="Resumo executivo da obra">
-          <article class="work-progress-card"><div class="work-progress-ring" id="work-progress-ring"><strong id="work-progress">0%</strong></div><div><span>PROGRESSO GERAL</span><strong id="work-current-stage">Ainda não iniciado</strong><small>Média ponderada das etapas aplicáveis</small></div></article>
+          <article class="work-progress-card"><div class="work-progress-ring" id="work-progress-ring"><strong id="work-progress">0%</strong></div><div><span>PROGRESSO GERAL</span><strong id="work-current-stage">Ainda não iniciado</strong><small id="work-progress-note">Atualizado pelos custos realizados</small></div></article>
           <article class="work-kpi"><span>Prazo planejado</span><strong id="work-deadline">Não definido</strong><small id="work-date-range">Cadastre as datas da obra</small></article>
           <article class="work-kpi"><span>Documentos</span><strong id="work-doc-kpi">0 pendentes</strong><small id="work-doc-detail">Checklist em dia</small></article>
           <article class="work-kpi"><span>Próximas ações</span><strong id="work-task-kpi">0 abertas</strong><small id="work-task-detail">Nenhuma ação atrasada</small></article>
@@ -404,10 +405,10 @@
   </aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="web-demo.js?v=20260819-1"></script>
-  <script src="data.js?v=20260819-2"></script>
-  <script src="quotes.js?v=20260819-6"></script>
-  <script src="works.js?v=20260819-7"></script>
-  <script src="app.js?v=20260819-8"></script>
+  <script src="web-demo.js?v=1.1.6"></script>
+  <script src="data.js?v=1.1.6"></script>
+  <script src="quotes.js?v=1.1.6"></script>
+  <script src="works.js?v=1.1.6"></script>
+  <script src="app.js?v=1.1.6"></script>
 </body>
 </html>

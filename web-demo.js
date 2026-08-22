@@ -1,6 +1,9 @@
 (function () {
   "use strict";
 
+  const version = "1.1.6";
+  window.DASH_VERSION = version;
+
   const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]"]);
   const isWebDemo = new URLSearchParams(location.search).has("demo")
     || location.protocol === "https:"
@@ -11,9 +14,13 @@
 
   document.documentElement.classList.add("web-demo");
   document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll('[data-section="work"], [data-section="quotes"]').forEach(link => {
+    document.querySelectorAll('[data-section="quotes"]').forEach(link => {
       link.hidden = true;
       link.setAttribute("aria-hidden", "true");
+    });
+
+    document.querySelectorAll("[data-dash-version]").forEach(node => {
+      node.textContent = `v${version}`;
     });
 
     const source = document.querySelector(".source-status");

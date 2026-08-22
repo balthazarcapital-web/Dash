@@ -2,5 +2,7 @@ runtime_data/
 outputs/
 node_modules/
 .tmp/
+public/
+dash-netlify.zip
 *.traineddata
 *.log
