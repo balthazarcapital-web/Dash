@@ -654,11 +654,13 @@ function parseSupplier(extraction, current = {}) {
   let validity = text.match(/VALIDADE(?:\s+(?:DESTE|DO)\s+OR[CÇ]AMENTO)?\s*:?\s*([^\n]+)/i)?.[1]?.trim() || text.match(/V[AÁ]LIDO\s+AT[EÉ]\s*:?\s*([^\n]+)/i)?.[1]?.trim() || current.validity || "";
   if (/eletrorastro/i.test(text)) validity = text.match(/Validade\s*:\s*\d+\s+Dias?\s*\((\d{2}\/\d{2}\/\d{4})\)/i)?.[1] || validity;
   const otherCharges = money(text.match(/(?:OUTRAS|OUTRAS\s+DESPESAS|ACR[EÉ]SCIMOS)\s*:?\s*(?:R\$\s*)?([\d.]+,\d{2})/i)?.[1]);
+  const officialTotalMatch = text.match(/(?:TOTAL\s+(?:DA\s+PROPOSTA|DO\s+OR[CÇ]AMENTO|GERAL|L[IÍ]QUIDO)|VALOR\s+TOTAL)\s*:?\s*(?:R\$|A\$)?\s*([\d.]+,\d{2})/i);
+  const officialTotal = money(officialTotalMatch?.[1]) || Number(current.officialTotal || 0);
   const discounts = [...text.matchAll(/(?:DESCONTO(?:\s+(?:PIX|D[EÉ]BITO|A VISTA))?|PIX|D[EÉ]BITO|A VISTA)\s*(\d+(?:[.,]\d+)?)\s*%[^\n]*(?:R\$\s*)?([\d.]+,\d{2})?/gi)].map(match => ({ label: match[0].trim(), percent: parseNumber(match[1]), amount: match[2] ? money(match[2]) : 0 }));
   return {
     ...current,
     name: current.name || firstMeaningfulLine(text), seller,
-    payment, delivery, validity, freight: freightIncluded ? 0 : money(freightMatch?.[1]), freightIncluded, otherCharges,
+    payment, delivery, validity, freight: freightIncluded ? 0 : money(freightMatch?.[1]), freightIncluded, otherCharges, officialTotal,
     discount: current.discount || 0, discounts, notes: current.notes || "", rawText: text,
     extractionMethod: extraction.method, extractionConfidence: extraction.confidence,
     items: items.length ? items : textQuoteItems(text)
@@ -736,6 +738,13 @@ function reconcile(quote) {
       if (item.confidence < 0.62) divergences.push({ id: `${supplier.id}:${item.id}:confidence`, supplierId: supplier.id, itemId: item.id, requestItemId: requestItem.id, type: "confidence", severity: "blocking", message: `Confirme a correspondência de “${item.description}” com “${requestItem.description}”.`, resolved: false });
     }
     for (const requestItem of requestItems) if (!matched.has(requestItem.id)) divergences.push({ id: `${supplier.id}:${requestItem.id}:missing`, supplierId: supplier.id, requestItemId: requestItem.id, type: "missing", severity: "warning", message: `${supplier.name || "Fornecedor"} não cotou “${requestItem.description}”.`, resolved: true });
+    const mappedItemsTotal = (supplier.items || []).reduce((sum, item) => item.requestItemId ? sum + Number(item.quotedTotal || (Number(item.quantity || 0) * Number(item.unitPrice || 0))) : sum, 0);
+    supplier.mappedItemsTotal = Number(mappedItemsTotal.toFixed(2));
+    if (supplier.officialTotal > 0) {
+      const expected = mappedItemsTotal + (supplier.freightIncluded ? 0 : Number(supplier.freight || 0)) + Number(supplier.otherCharges || 0) - Number(supplier.discount || 0);
+      supplier.reconciliationDifference = Number((supplier.officialTotal - expected).toFixed(2));
+      if (Math.abs(supplier.reconciliationDifference) > 0.05) divergences.push({ id: `${supplier.id}:total-reconciliation`, supplierId: supplier.id, type: "total", severity: "warning", message: `${supplier.name || "Fornecedor"}: total oficial ${supplier.officialTotal.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}, mas itens mapeados e ajustes somam ${expected.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}. Diferença de ${supplier.reconciliationDifference.toLocaleString("pt-BR", { style: "currency", currency: "BRL" })}.`, resolved: true });
+    } else supplier.reconciliationDifference = null;
   }
   const previous = new Map((quote.divergences || []).map(row => [row.id, row.resolved]));
   quote.divergences = divergences.map(row => ({ ...row, resolved: previous.get(row.id) ?? row.resolved }));
