@@ -1,5 +1,5 @@
 $ErrorActionPreference = 'Stop'
-$runtimeRoot = 'C:\Users\balth\.cache\codex-runtimes\codex-primary-runtime\dependencies'
+$runtimeRoot = Join-Path $env:USERPROFILE '.cache\codex-runtimes\codex-primary-runtime\dependencies'
 $node = Join-Path $runtimeRoot 'node\bin\node.exe'
 $env:DETERLIMP_NODE_MODULES = Join-Path $runtimeRoot 'node\node_modules'
 $env:DETERLIMP_PYTHON = Join-Path $runtimeRoot 'python\python.exe'

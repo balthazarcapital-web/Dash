@@ -1,0 +1,20 @@
+{
+  "name": "absolutta-dashboard",
+  "version": "1.0.0",
+  "packageManager": "pnpm@10.15.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "build": "node scripts/build-vercel.mjs"
+  },
+  "engines": {
+    "node": "24.x"
+  },
+  "dependencies": {
+    "exceljs": "^4.4.0",
+    "pdf-parse": "^1.1.1",
+    "sharp": "^0.34.3",
+    "tesseract.js": "^6.0.1",
+    "xlsx": "^0.18.5"
+  }
+}

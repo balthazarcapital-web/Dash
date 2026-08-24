@@ -18,7 +18,7 @@
   function setBusy(button,busy,label="Processando..."){
     if(!button)return; if(busy){button.dataset.original=button.innerHTML;button.disabled=true;button.textContent=label}else{button.disabled=false;if(button.dataset.original)button.innerHTML=button.dataset.original}
   }
-  function statusLabel(status){return({rascunho:"Rascunho","aguardando orçamentos":"Aguardando orçamentos","conferência":"Em conferência",pronto:"Pronto para gerar","mapa gerado":"Mapa gerado"})[status]||status||"Rascunho"}
+  function statusLabel(status){return({rascunho:"Rascunho","aguardando orçamentos":"Aguardando orçamentos","conferência":"Em conferência",pronto:"Pronto para gerar","mapa gerado":"Mapa gerado",aprovado:"Fornecedor aprovado","ordem de compra":"Ordem de compra gerada"})[status]||status||"Rascunho"}
   function showFeedback(target,message,type="success"){
     target.hidden=false;target.className=`import-feedback ${type}`;target.textContent=message;
   }
@@ -55,7 +55,7 @@
 
   function render(){
     const has=!!qstate.quote;$("#quote-empty").hidden=has;$("#quote-workspace").hidden=!has;if(!has)return;
-    renderStatus();renderRequest();renderSuppliers();renderReview();renderGenerate();goStep(qstate.step,false);
+    renderStatus();renderRequest();renderSuppliers();renderReview();renderApproval();renderPurchase();goStep(qstate.step,false);
   }
   function renderStatus(){
     if(!qstate.quote)return;const quote=qstate.quote;
@@ -110,7 +110,7 @@
   function renderReview(){
     const quote=qstate.quote,blocking=(quote.divergences||[]).filter(row=>row.severity==="blocking"&&!row.resolved);
     $("#review-counter").innerHTML=`<strong>${blocking.length}</strong><span>pendência${blocking.length===1?"":"s"}</span>`;
-    $("#divergence-list").innerHTML=quote.divergences?.length?quote.divergences.map(div=>`<article class="divergence ${div.severity} ${div.resolved?"resolved":""}"><span>${div.resolved?"✓":div.severity==="blocking"?"!":"i"}</span><div><strong>${div.type==="quantity"?"Quantidade divergente":div.type==="unmatched"?"Item não relacionado":div.type==="confidence"?"Correspondência incerta":"Item não cotado"}</strong><p>${escapeHtml(div.message)}</p></div>${div.severity==="blocking"?`<label><input type="checkbox" data-resolve-divergence="${escapeHtml(div.id)}" ${div.resolved?"checked":""}>Conferido</label>`:""}</article>`).join(""):'<div class="review-success"><span>✓</span><div><strong>Nenhuma divergência encontrada</strong><p>Os itens e quantidades podem seguir para o mapa.</p></div></div>';
+    $("#divergence-list").innerHTML=quote.divergences?.length?quote.divergences.map(div=>`<article class="divergence ${div.severity} ${div.resolved?"resolved":""}"><span>${div.resolved?"✓":div.severity==="blocking"?"!":"i"}</span><div><strong>${div.type==="quantity"?"Quantidade divergente":div.type==="unmatched"?"Item não relacionado":div.type==="extra"?"Item extra do fornecedor":div.type==="confidence"?"Correspondência incerta":"Item não cotado"}</strong><p>${escapeHtml(div.message)}</p></div>${div.severity==="blocking"?`<label><input type="checkbox" data-resolve-divergence="${escapeHtml(div.id)}" ${div.resolved?"checked":""}>Conferido</label>`:""}</article>`).join(""):'<div class="review-success"><span>✓</span><div><strong>Nenhuma divergência encontrada</strong><p>Os itens e quantidades podem seguir para o mapa.</p></div></div>';
     renderComparison();renderReviewSummary();
   }
   function renderReviewSummary(){
@@ -132,17 +132,33 @@
     const unmatched=suppliers.flatMap(s=>(s.items||[]).filter(item=>!item.requestItemId).map(item=>({...item,supplier:s})));
     const panel=$("#unmatched-panel");panel.hidden=!unmatched.length;panel.innerHTML=unmatched.length?`<strong>Itens ainda não relacionados</strong>${unmatched.map(item=>`<p>${escapeHtml(item.supplier.name)}: ${escapeHtml(item.description)}</p>`).join("")}`:"";
   }
-  function renderGenerate(){
-    const quote=qstate.quote,suppliers=quote.suppliers||[],items=quote.request.items||[];
-    $("#generate-summary").innerHTML=`<div><span>Pedido</span><strong>${escapeHtml(quote.request.number||"Sem número")}</strong></div><div><span>Categoria</span><strong>${escapeHtml(quote.request.category||"Não informada")}</strong></div><div><span>Itens</span><strong>${items.length}</strong></div><div><span>Fornecedores</span><strong>${suppliers.length}</strong></div>`;
-    $("#final-supplier-summary").innerHTML=suppliers.length?suppliers.map((supplier,index)=>`<div class="final-supplier"><span class="supplier-number">${index+1}</span><div><strong>${escapeHtml(supplier.name||`Fornecedor ${index+1}`)}</strong><small>${escapeHtml(supplier.payment||"Pagamento não informado")}${supplier.delivery?` • ${escapeHtml(supplier.delivery)}`:""}</small></div><b>${money.format(supplierTotal(supplier))}</b></div>`).join(""):'<div class="history-empty">Adicione fornecedores para ver o resumo.</div>';
-    const latest=quote.generated?.at(-1),link=$("#download-map"),preview=$("#generated-preview");
-    if(latest){link.hidden=false;link.href=`/api/quotes/${quote.id}/files/${encodeURIComponent(latest.filename)}`;link.setAttribute("download",latest.filename);link.textContent="Baixar Excel gerado";preview.hidden=false;preview.src=`/api/quotes/${quote.id}/files/${encodeURIComponent(latest.preview)}?preview=1&t=${Date.now()}`}
-    else{link.hidden=true;preview.hidden=true;preview.removeAttribute("src")}
+  function renderApproval(){
+    const quote=qstate.quote,suppliers=quote.suppliers||[],selected=quote.approval?.supplierId||"";
+    $("#approval-supplier-grid").innerHTML=suppliers.length?suppliers.map((supplier,index)=>`<label class="approval-option"><input type="radio" name="approved-supplier" value="${escapeHtml(supplier.id)}" ${supplier.id===selected?"checked":""}><strong>${escapeHtml(supplier.name||`Fornecedor ${index+1}`)}</strong><small>${escapeHtml(supplier.payment||"Pagamento não informado")}${supplier.delivery?` • ${escapeHtml(supplier.delivery)}`:""}</small><b>${money.format(supplierTotal(supplier))}</b></label>`).join(""):'<div class="supplier-empty"><strong>Nenhum fornecedor disponível</strong><p>Adicione propostas na etapa Arquivos.</p></div>';
+    $("#approval-notes").value=quote.approval?.notes||"";
+  }
+  async function openFromOrder(order){
+    if(!order)return;if(!qstate.service)await checkService();await loadHistory();
+    const existing=qstate.history.find(row=>String(row.request.number||"")===String(order.number||"")&&String(row.request.category||"").localeCompare(String(order.category||""),"pt-BR",{sensitivity:"base"})===0);
+    if(existing){await loadQuote(existing.id);if(qstate.quote.request.items?.length&&qstate.quote.suppliers?.length&&qstate.quote.request.mapTemplate?.driveId){goStep(3);qstate.toast("Pedido, orçamentos e modelo carregados");return}try{const result=await api(`/api/quotes/${qstate.quote.id}/drive-search`,{method:"POST"});qstate.quote=result.quote;render();const complete=qstate.quote.request.items?.length&&qstate.quote.suppliers?.length;goStep(complete?3:2);qstate.toast(complete?"Pedido e arquivos relacionados automaticamente":"Pasta incompleta: complete os arquivos manualmente")}catch(error){goStep(2);qstate.toast(error.message)}return}
+    try{qstate.quote=await api("/api/quotes",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({clientId:qstate.client.id,clientName:qstate.client.name,work:qstate.client.work})});qstate.quote.request={...qstate.quote.request,number:order.number||"",category:order.category||"",date:order.date||qstate.quote.request.date,neededDate:order.delivery||"",requester:order.requester||"",work:qstate.client.work||qstate.client.name,sourceOrderKey:`${qstate.client.id}|${order.date||""}|${order.number||""}|${order.description||""}`,driveFolderId:order.driveAssets?.folderId||"",items:(order.items?.length?order.items:[]).map((item,index)=>({id:item.id||uid("item"),number:item.number||index+1,quantity:toNumber(item.quantity)||1,unit:item.unit||"UN",description:item.description||"",neededDate:item.neededDate||order.delivery||""}))};await saveNow();const result=await api(`/api/quotes/${qstate.quote.id}/drive-search`,{method:"POST"});qstate.quote=result.quote;const complete=qstate.quote.request.items?.length&&qstate.quote.suppliers?.length;qstate.step=complete?3:2;render();await loadHistory();qstate.toast(complete?"Pedido e arquivos relacionados automaticamente":"Pasta incompleta: complete os arquivos manualmente")}
+    catch(error){if(qstate.quote){qstate.step=2;render();await loadHistory()}qstate.toast(error.message)}
+  }
+  function approvedSupplier(){return qstate.quote.suppliers?.find(row=>row.id===qstate.quote.approval?.supplierId)}
+  function renderPurchase(){
+    const quote=qstate.quote,supplier=approvedSupplier(),requestItems=quote.request.items||[],link=$("#download-purchase-order"),latest=quote.purchaseOrders?.at(-1);
+    const priced=supplier?(supplier.items||[]).filter(item=>item.requestItemId&&toNumber(item.unitPrice)>0).map(item=>({item,request:requestItems.find(row=>row.id===item.requestItemId)})).filter(row=>row.request):[];
+    $("#purchase-title").textContent=supplier?`Comprar de ${supplier.name||"fornecedor aprovado"}`:"Aguardando fornecedor";
+    $("#purchase-description").textContent=supplier?"A O.C. inclui somente os itens cotados por este fornecedor.":"Escolha e aprove um fornecedor na etapa anterior.";
+    $("#purchase-summary").innerHTML=supplier?`<div><span>Cliente / obra</span><strong>${escapeHtml(quote.request.work||qstate.client.name)}</strong></div><div><span>Pedido</span><strong>${escapeHtml(quote.request.number||"Sem número")}</strong></div><div><span>Fornecedor</span><strong>${escapeHtml(supplier.name||"Não informado")}</strong></div><div><span>Total</span><strong>${money.format(supplierTotal(supplier))}</strong></div>`:"";
+    $("#purchase-items").innerHTML=priced.length?priced.map(({item,request})=>`<div class="purchase-item"><div><strong>${escapeHtml(request.description)}</strong><small>${escapeHtml(`${request.quantity} ${request.unit||"UN"}${item.brand?` • ${item.brand}`:""}`)}</small></div><b>${money.format(itemTotalForRequest(item,request))}</b></div>`).join(""):'<div class="purchase-empty">Nenhum item com valor no fornecedor escolhido.</div>';
+    $("#generate-purchase-order").disabled=!supplier||!priced.length;
+    if(latest){link.hidden=false;link.href=`/api/quotes/${quote.id}/files/${encodeURIComponent(latest.filename)}`;link.setAttribute("download",latest.filename)}else link.hidden=true;
+    const map=quote.generated?.at(-1),mapLink=$("#download-map"),finalMapLink=$("#download-map-final"),sheetsLink=$("#open-google-sheets");if(map){const href=`/api/quotes/${quote.id}/files/${encodeURIComponent(map.filename)}`;mapLink.hidden=false;mapLink.href=href;mapLink.setAttribute("download",map.filename);finalMapLink.hidden=false;finalMapLink.href=href;finalMapLink.setAttribute("download",map.filename);sheetsLink.hidden=false}else{mapLink.hidden=true;finalMapLink.hidden=true;sheetsLink.hidden=true}
   }
 
   function goStep(step,scroll=true){
-    qstate.step=Number(step);$$('[data-quote-step]').forEach(button=>{const value=Number(button.dataset.quoteStep);button.classList.toggle("active",value===qstate.step);button.classList.toggle("done",value<qstate.step)});$$('[data-step-panel]').forEach(panel=>{const active=Number(panel.dataset.stepPanel)===qstate.step;panel.hidden=!active;panel.classList.toggle("active",active)});if(qstate.step===3)renderReview();if(qstate.step===4)renderGenerate();if(scroll)$("#quote-workspace").scrollIntoView({behavior:"smooth",block:"start"})
+    qstate.step=Number(step);$$('[data-quote-step]').forEach(button=>{const value=Number(button.dataset.quoteStep);button.classList.toggle("active",value===qstate.step);button.classList.toggle("done",value<qstate.step)});$$('[data-step-panel]').forEach(panel=>{const active=Number(panel.dataset.stepPanel)===qstate.step;panel.hidden=!active;panel.classList.toggle("active",active)});if(qstate.step===3)renderReview();if(qstate.step===4)renderApproval();if(qstate.step===5)renderPurchase();if(scroll)$("#quote-workspace").scrollIntoView({behavior:"smooth",block:"start"})
   }
   function addRequestItem(){qstate.quote.request.items.push({id:uid("item"),number:qstate.quote.request.items.length+1,quantity:1,unit:"UN",description:"",neededDate:qstate.quote.request.neededDate||""});renderRequest();scheduleSave()}
   function addSupplier(){
@@ -160,10 +176,24 @@
     try{const result=await api(`/api/quotes/${qstate.quote.id}/generate`,{method:"POST"});qstate.quote=result.quote;render();qstate.toast("Mapa de cotação gerado e salvo no histórico")}
     catch(error){qstate.toast(error.message);if(error.status===409)goStep(3)}finally{setBusy(button,false)}
   }
+  async function searchDrive(){
+    const button=$("#quote-drive-search"),feedback=$("#quote-drive-feedback");setBusy(button,true,"Buscando no Drive...");
+    try{const result=await api(`/api/quotes/${qstate.quote.id}/drive-search`,{method:"POST"});qstate.quote=result.quote;render();showFeedback(feedback,`${result.files?.length||0} arquivo(s) encontrado(s) e processado(s).`);qstate.toast("Arquivos do pedido carregados")}
+    catch(error){showFeedback(feedback,error.message,"error");qstate.toast(error.message)}finally{setBusy(button,false)}
+  }
+  async function saveApproval(){
+    const selected=document.querySelector('input[name="approved-supplier"]:checked');if(!selected){qstate.toast("Escolha um fornecedor");return}
+    qstate.quote.approval={supplierId:selected.value,notes:$("#approval-notes").value.trim(),approvedAt:new Date().toISOString()};qstate.quote.status="aprovado";await saveNow();render();qstate.toast("Fornecedor aprovado e registrado")
+  }
+  async function generatePurchaseOrder(){
+    const button=$("#generate-purchase-order");setBusy(button,true,"Gerando O.C....");
+    try{const result=await api(`/api/quotes/${qstate.quote.id}/purchase-order`,{method:"POST"});qstate.quote=result.quote;render();qstate.toast("Ordem de Compra gerada")}
+    catch(error){qstate.toast(error.message)}finally{setBusy(button,false)}
+  }
 
   function bind(){
     $("#quote-new").addEventListener("click",createQuote);$("[data-create-quote]").addEventListener("click",createQuote);$("#quote-history-toggle").addEventListener("click",()=>{$("#quote-history").hidden=!$("#quote-history").hidden;loadHistory()});$("#quote-history-close").addEventListener("click",()=>$("#quote-history").hidden=true);$("#quote-close-workspace").addEventListener("click",()=>{qstate.quote=null;render()});
-    $("#request-import").addEventListener("click",()=>importDocument("request"));$("#request-add-item").addEventListener("click",addRequestItem);$("#supplier-add").addEventListener("click",addSupplier);$("#generate-map").addEventListener("click",generateMap);
+    $("#request-import").addEventListener("click",()=>importDocument("request"));$("#request-add-item").addEventListener("click",addRequestItem);$("#supplier-add").addEventListener("click",addSupplier);$("#generate-map").addEventListener("click",generateMap);$("#quote-drive-search").addEventListener("click",searchDrive);$("#save-approval").addEventListener("click",saveApproval);$("#generate-purchase-order").addEventListener("click",generatePurchaseOrder);
     $("#quote-existing-order").addEventListener("change",event=>{const order=qstate.orders()[Number(event.target.value)];if(!order)return;qstate.quote.request={...qstate.quote.request,number:order.number||"",category:order.category||"",date:order.date||"",requester:order.requester||"",items:[{id:uid("item"),number:1,quantity:1,unit:"UN",description:order.description||"",neededDate:order.delivery||""}]};renderRequest();scheduleSave()});
     const requestFields={"request-number":"number","request-category":"category","request-work":"work","request-requester":"requester","request-date":"date","request-needed":"neededDate"};Object.entries(requestFields).forEach(([id,field])=>$("#"+id).addEventListener("input",event=>{qstate.quote.request[field]=event.target.value;scheduleSave()}));
     document.addEventListener("click",event=>{
@@ -189,5 +219,5 @@
   function enter(){if(!qstate.initialized)init({orders:()=>window.DETERLIMP_DATA||[]});populateOrders();loadHistory()}
   function setClient(client){qstate.client=client||qstate.client;qstate.quote=null;qstate.history=[];qstate.step=1;const select=$("#quote-existing-order");while(select?.options.length>1)select.remove(1);render();loadHistory()}
   function hasActiveQuote(){return!!qstate.quote}
-  window.DeterlimpQuotes={init,enter,loadQuote,setClient,hasActiveQuote};
+  window.DeterlimpQuotes={init,enter,loadQuote,openFromOrder,setClient,hasActiveQuote};
 })();

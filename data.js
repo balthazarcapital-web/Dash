@@ -34,7 +34,8 @@ window.DETERLIMP_DATA = [
   {date:"2026-08-17",requester:"Marco",description:"Pintura",category:"Civil",number:"38",status:"Faturado",delivery:"Retirada em 17/08",supplier:"Mafrei",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""},
   {date:"2026-08-17",requester:"Marco",description:"Tomadas",category:"Elétrica",number:"9",status:"Aguardando Aprovação",delivery:"",supplier:"",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""},
   {date:"2026-08-17",requester:"Marco",description:"Mão francesa reforçada e eletrocalha",category:"Elétrica",number:"",status:"Cotação",delivery:"2026-08-26",supplier:"Acquafort",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""},
-  {date:"2026-08-18",requester:"Marco",description:"Cabos e eletrocalha 200 × 100",category:"Elétrica",number:"10",status:"Cotação",delivery:"",supplier:"",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""}
+  {date:"2026-08-18",requester:"Marco",description:"Cabos e eletrocalha 200 × 100",category:"Elétrica",number:"10",status:"Cotação",delivery:"",supplier:"",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""},
+  {date:"2026-08-19",requester:"Marco Fabio Frederico",description:"Hidráulica 05",category:"Hidráulica",number:"5",status:"Cotação",delivery:"2026-08-22",supplier:"",invoice:"",issue:"",value:0,nfFile:"",payment:"",due:""}
 ];
 
 window.DASHBOARD_CLIENTS = {

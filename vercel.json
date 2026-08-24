@@ -1,0 +1,21 @@
+{
+  "$schema": "https://openapi.vercel.sh/vercel.json",
+  "cleanUrls": true,
+  "trailingSlash": false,
+  "builds": [
+    { "src": "api/index.mjs", "use": "@vercel/node", "config": { "maxDuration": 300, "includeFiles": ["scripts/**", "budget-dr-clovis.json", "works-data.json"] } },
+    { "src": "index.html", "use": "@vercel/static" },
+    { "src": "*.js", "use": "@vercel/static" },
+    { "src": "*.css", "use": "@vercel/static" },
+    { "src": "*.json", "use": "@vercel/static" },
+    { "src": "comparativo-cli-inova/**", "use": "@vercel/static" },
+    { "src": "erp-compras/**", "use": "@vercel/static" }
+  ],
+  "routes": [
+    { "src": "/(.*)", "headers": { "X-Content-Type-Options": "nosniff", "Referrer-Policy": "strict-origin-when-cross-origin", "Permissions-Policy": "camera=(), microphone=(), geolocation=()" }, "continue": true },
+    { "src": "/api/(.*)", "dest": "/api/index.mjs" },
+    { "src": "/", "dest": "/index" },
+    { "handle": "filesystem" },
+    { "src": "/(.*)", "dest": "/index" }
+  ]
+}

@@ -1,8 +1,12 @@
 runtime_data/
 outputs/
 node_modules/
+.pnpm-store/
 .tmp/
 public/
 dash-netlify.zip
 *.traineddata
 *.log
+.vercel
+.env*
+!.env.example

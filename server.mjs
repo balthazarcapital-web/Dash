@@ -6,19 +6,88 @@ import { fileURLToPath, pathToFileURL } from "node:url";
 import { createRequire } from "node:module";
 import { spawn } from "node:child_process";
 import crypto from "node:crypto";
+import os from "node:os";
+import ExcelJS from "exceljs";
+import pdfParse from "pdf-parse";
+import XLSX from "xlsx";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
-const runtimeDir = path.join(root, "runtime_data");
+const isVercel = Boolean(process.env.VERCEL);
+const runtimeDir = isVercel ? path.join(os.tmpdir(), "absolutta-dashboard") : path.join(root, "runtime_data");
 const uploadDir = path.join(runtimeDir, "uploads");
 const generatedDir = path.join(runtimeDir, "generated");
 const storePath = path.join(runtimeDir, "quotes.json");
 const worksStorePath = path.join(runtimeDir, "works.json");
 const workUploadsDir = path.join(runtimeDir, "work-documents");
 const drClovisBudgetPath = path.join(root, "budget-dr-clovis.json");
-const outputDir = path.join(root, "outputs", "quote-automation-demo");
+const publishedWorksPath = path.join(root, "works-data.json");
+const outputDir = isVercel ? path.join(runtimeDir, "quote-automation-demo") : path.join(root, "outputs", "quote-automation-demo");
+const driveRoots = {
+  deterlimp: process.env.GOOGLE_DRIVE_ROOT_DETERLIMP || "1F5mfcQ6STExZHtbbCr_QCYV1FUjznw3z",
+  carlos_bezerra: process.env.GOOGLE_DRIVE_ROOT_CARLOS_BEZERRA || "1ShnoGQbYwC947ZKN1ziV43az5AJrd94d",
+  dr_clovis_cmfs: process.env.GOOGLE_DRIVE_ROOT_DR_CLOVIS_CMFS || "1MenF8_QQ52eg1pRP39fiQv2n1hP9pRFc",
+  clinica_gianna: process.env.GOOGLE_DRIVE_ROOT_CLINICA_GIANNA || "1FErPPJh_DK3VdoOXIMPQpL5MCuZ1oxfF"
+};
+// Estado compartilhado do dashboard fica em uma pasta normal do Drive. Isso
+// evita depender do escopo appDataFolder, mantendo leitura e gravação com o
+// mesmo OAuth já usado para localizar os pedidos.
+const driveStateFolderId = process.env.GOOGLE_DRIVE_STATE_FOLDER_ID || driveRoots.deterlimp;
+const spreadsheetBases = {
+  deterlimp: { id: "13Kmg41VDV8KUijPucj2TxCFdElFD6Vfb1WY4WwB7msU", gid: "1856239408" },
+  carlos_bezerra: { id: "1PE6KUaEEshp2Kk1d9eExIFp53DzNTJST7mJc4pMZEuw", gid: "1856239408" },
+  clinica_gianna: { id: "1_LTDwN25pSKXfofahLgFiRGndb79cWNHxi8iR3v_VHM", gid: "1856239408" },
+  dr_clovis_cmfs: { id: "1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU", gid: "1856239408" }
+};
+const drivePilot = {
+  clientId: "deterlimp", number: "5", category: "Hidráulica", folderId: "1xon5pJF9nxvWZHqKY3IpWOcVcrjRwz1a",
+  files: [
+    { id: "1yzfP6frvgUNTbVA8rHZRBVZCgv18rUmr", role: "request", name: "01 - Pedido - Hidráulica 05.pdf" },
+    { id: "1FxZ7N0qZfVuPNU4NpL7IHfYmarlaU0kE", role: "supplier", supplier: "Balaroti", name: "02 - Orçamento - Balaroti - 392160.pdf" },
+    { id: "16LSJsZJHMmFPgV6d2Wt_SucUwJ2vurGD", role: "supplier", supplier: "Nichele", name: "02 - Orçamento - Nichele - 1803376.pdf" }
+  ],
+  requestItems: [
+    [1,1,"UN","MICTÓRIO SANITÁRIO BRANCO GELO DECA"],[2,3,"UN","BACIA SANITÁRIA COM CAIXA ACOPLADA DECA"],[3,2,"UN","CUBA DE EMBUTIR OVAL BRANCA PARA BANCADA DECA 49CM X 36,5CM"],[4,8,"UN","ENGATE FLEXÍVEL DE 40 CM"],[5,1,"UN","CANO PARA CHUVEIRO DE 40 CM"],[6,1,"UN","CHUVEIRO 220 V FAME"],[7,8,"UN","CANOPLA PARA REGISTRO DECA 3/4"],[8,2,"UN","TORNEIRA BICA ALTA CROMADA DE BANCADA DECA"],[9,12,"UN","SIFÃO UNIVERSAL SANFONADO"],[10,3,"UN","ANEL DE VEDAÇÃO PARA VASO SANITÁRIO"],[11,1,"UN","SPUD PARA MICTÓRIO DECA"],[12,1,"UN","TUBO DE LIGAÇÃO AJUSTÁVEL PARA MICTÓRIO DECA"],[13,3,"UN","ASSENTO SANITÁRIO VASO DECA"],[14,2,"UN","VÁLVULA DECA PARA ESCOAMENTO LAVATÓRIO"],[15,12,"UN","PARAFUSO 10MM COM BUCHA PARA VASO SANITÁRIO"],[16,2,"UN","FITA VEDA ROSCA 18MM X 25M"],[17,11,"BR","TUBO SOLDÁVEL MARROM 25MM"]
+  ],
+  supplierTexts: {
+    Balaroti: `Balaroti Pedido 392160 Vendedor Moreira. Validade 20/08/2026. Plano: A VISTA. Entrega: 24/08/2026.
+8 PC ENGATE FLEXIVEL 40CM TIGRE 8,90 71,20
+1 PC BRACO PARA CHUVEIRO 40CM ASTRA 29,90 29,90
+12 PC SIFAO SANFONADO UNIVERSAL BLUKIT 7,90 94,80
+1 PC ESPUDE 1.1/2 ASTRA 10,90 10,90
+3 PC KIT BACIA COM CAIXA ACOPLADA DECA 959,90 2.879,70
+1 PC VALVULA MICTORIO DOCOL 796,90 796,90
+2 PC TORNEIRA LAVATORIO MESA LINK DECA 403,90 807,80
+2 PC CUBA EMBUTIR 49X36,5 OVAL DECA 136,90 273,80
+1 UN DUCHA 220V ZAGONEL 149,90 149,90
+2 PC VEDA ROSCA 18MMX25M TIGRE 11,90 23,80
+11 TB TUBO 25MM SOLDAVEL 6M TIGRE 25,90 284,90
+1 PC MICTORIO COM SIFAO INTEGRADO DECA 815,90 815,90
+8 UN ACABAMENTO REGISTRO 3/4 REAL 33,90 271,20
+Frete R$ 86,44. Total do Orçamento R$ 6.597,14.`,
+    Nichele: `NICHELE Orçamento 1.803.376. Validade 22/08/2026. Condição de pagamento CARTAO CREDITO. Vendedora ANGELICA.
+1 PC MICTORIO GELO DECA 816,65 816,65
+3 PC KIT BACIA CAIXA ACOPLADA ASPEN DECA 954,90 2.864,70
+2 PC CUBA EMBUTIR OVAL 49X36,5 DECA 133,80 267,60
+8 PC ENGATE FLEX 40CM DECA 55,96 447,68
+1 PC CANO CHUVEIRO 40CM ENERBRAS 23,26 23,26
+1 PC DUCHA 220V LORENZETTI 113,30 113,30
+8 PC ACABAMENTO REGISTRO 3/4 DECA 85,15 681,20
+2 PC TORNEIRA LAVATORIO MESA ALTA DECA 393,04 786,08
+12 PC SIFAO SANFONADO TIGRE 8,92 107,04
+3 PC ANEL VEDACAO BACIA TIGRE 18,51 55,53
+1 PC ESPUDE BACIA TIGRE 9,23 9,23
+1 PC TUBO LIGACAO DECA 257,68 257,68
+3 PC ASSENTO SANITARIO ASPEN DECA 153,98 461,94
+2 PC VALVULA ESCOAMENTO DECA 61,65 123,30
+12 PC PARAFUSO WC COM BUCHA 10MM 22,22 266,64
+2 PC VEDA ROSCA 18X25M TIGRE 11,49 22,98
+11 BR TUBO SOLDAVEL 25MM TIGRE 27,58 303,38
+Outras despesas R$ 200,00. Total geral R$ 7.808,19.`
+  }
+};
 const port = Number(process.env.PORT || 4173);
 const depRoot = process.env.DETERLIMP_NODE_MODULES || "C:/Users/balth/.cache/codex-runtimes/codex-primary-runtime/dependencies/node/node_modules";
-const runtimeRequire = createRequire(path.join(depRoot, "package.json"));
+const runtimeRequire = isVercel ? createRequire(import.meta.url) : createRequire(path.join(depRoot, "package.json"));
 const pythonPath = process.env.DETERLIMP_PYTHON || "C:/Users/balth/.cache/codex-runtimes/codex-primary-runtime/dependencies/python/python.exe";
 const pdftoppmPath = process.env.DETERLIMP_PDFTOPPM || "C:/Users/balth/.cache/codex-runtimes/codex-primary-runtime/dependencies/native/poppler/Library/bin/pdftoppm.exe";
 
@@ -70,10 +139,77 @@ const displayDate = value => {
   return raw || new Intl.DateTimeFormat("pt-BR").format(new Date());
 };
 
+const driveConfigured = () => Boolean(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET && process.env.GOOGLE_REFRESH_TOKEN);
+let googleAccessToken = "";
+let googleAccessTokenExpiresAt = 0;
+const driveStateIds = new Map();
+
+async function getGoogleAccessToken() {
+  if (!driveConfigured()) throw new Error("Google Drive ainda não foi conectado no servidor.");
+  if (googleAccessToken && Date.now() < googleAccessTokenExpiresAt - 60_000) return googleAccessToken;
+  const form = new URLSearchParams({
+    client_id: process.env.GOOGLE_CLIENT_ID,
+    client_secret: process.env.GOOGLE_CLIENT_SECRET,
+    refresh_token: process.env.GOOGLE_REFRESH_TOKEN,
+    grant_type: "refresh_token"
+  });
+  const response = await fetch("https://oauth2.googleapis.com/token", { method: "POST", headers: { "Content-Type": "application/x-www-form-urlencoded" }, body: form });
+  const payload = await response.json();
+  if (!response.ok || !payload.access_token) throw new Error(payload.error_description || "Não foi possível renovar o acesso ao Google Drive.");
+  googleAccessToken = payload.access_token;
+  googleAccessTokenExpiresAt = Date.now() + Number(payload.expires_in || 3600) * 1000;
+  return googleAccessToken;
+}
+
+async function driveFetch(url, options = {}) {
+  const token = await getGoogleAccessToken();
+  const response = await fetch(url, { ...options, headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    throw new Error(`Google Drive (${response.status}): ${message.slice(0, 500) || response.statusText}`);
+  }
+  return response;
+}
+
+async function findDriveStateFile(name) {
+  if (driveStateIds.has(name)) return driveStateIds.get(name);
+  const q = encodeURIComponent(`name='${name.replaceAll("'", "\\'")}' and '${driveStateFolderId}' in parents and trashed=false`);
+  const response = await driveFetch(`https://www.googleapis.com/drive/v3/files?spaces=drive&q=${q}&supportsAllDrives=true&includeItemsFromAllDrives=true&fields=files(id,name)&pageSize=10`);
+  const id = (await response.json()).files?.[0]?.id || "";
+  if (id) driveStateIds.set(name, id);
+  return id;
+}
+
+async function readDriveState(name, fallback) {
+  const id = await findDriveStateFile(name);
+  if (!id) return fallback;
+  const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${id}?alt=media`);
+  try { return JSON.parse(await response.text()); } catch { return fallback; }
+}
+
+async function writeDriveState(name, value) {
+  const body = JSON.stringify(value, null, 2);
+  let id = await findDriveStateFile(name);
+  if (!id) {
+    const boundary = `dash_${crypto.randomUUID()}`;
+    const multipart = Buffer.concat([
+      Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, parents: [driveStateFolderId], mimeType: "application/json" })}\r\n`),
+      Buffer.from(`--${boundary}\r\nContent-Type: application/json\r\n\r\n${body}\r\n--${boundary}--`)
+    ]);
+    const response = await driveFetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id", { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart });
+    id = (await response.json()).id;
+    driveStateIds.set(name, id);
+  } else {
+    await driveFetch(`https://www.googleapis.com/upload/drive/v3/files/${id}?uploadType=media`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body });
+  }
+}
+
 async function readStore() {
+  if (isVercel && driveConfigured()) return readDriveState("absolutta-dashboard-quotes.json", []);
   try { return JSON.parse(await fs.readFile(storePath, "utf8")); } catch { return []; }
 }
 async function writeStore(rows) {
+  if (isVercel && driveConfigured()) return writeDriveState("absolutta-dashboard-quotes.json", rows);
   const temp = `${storePath}.tmp`;
   await fs.writeFile(temp, JSON.stringify(rows, null, 2), "utf8");
   await fs.rename(temp, storePath);
@@ -89,9 +225,11 @@ async function saveQuote(quote) {
 }
 
 async function readWorks() {
+  if (isVercel && driveConfigured()) return readDriveState("absolutta-dashboard-works.json", []);
   try { return JSON.parse(await fs.readFile(worksStorePath, "utf8")); } catch { return []; }
 }
 async function writeWorks(rows) {
+  if (isVercel && driveConfigured()) return writeDriveState("absolutta-dashboard-works.json", rows);
   const temp = `${worksStorePath}.tmp`;
   await fs.writeFile(temp, JSON.stringify(rows, null, 2), "utf8");
   await fs.rename(temp, worksStorePath);
@@ -106,6 +244,52 @@ let drClovisBudgetPromise;
 async function drClovisBudget() {
   if (!drClovisBudgetPromise) drClovisBudgetPromise = fs.readFile(drClovisBudgetPath, "utf8").then(JSON.parse);
   return structuredClone(await drClovisBudgetPromise);
+}
+let publishedWorksPromise;
+async function publishedWork(clientId) {
+  if (!publishedWorksPromise) publishedWorksPromise = fs.readFile(publishedWorksPath, "utf8").then(JSON.parse).catch(() => []);
+  const seed = (await publishedWorksPromise).find(row => row.clientId === clientId);
+  return seed ? structuredClone(seed) : null;
+}
+function mergeById(seedRows = [], localRows = [], fallbackKey = "id") {
+  const result = seedRows.map(seed => {
+    const local = localRows.find(row => row.id === seed.id || (fallbackKey && row[fallbackKey] && row[fallbackKey] === seed[fallbackKey]));
+    return local ? { ...seed, ...local } : seed;
+  });
+  const known = new Set(result.map(row => row.id));
+  result.push(...localRows.filter(row => !known.has(row.id)));
+  return result;
+}
+function restorePublishedWork(local, seed) {
+  if (!seed) return { work: local, changed: false };
+  let changed = false;
+  const work = structuredClone(local);
+  const localBudgetItems = work.budget?.items?.length || 0;
+  const seedBudgetItems = seed.budget?.items?.length || 0;
+  if (seedBudgetItems > localBudgetItems) {
+    const actuals = mergeById(seed.budget.actuals || [], work.budget?.actuals || [], "orderRef");
+    work.budget = { ...seed.budget, actuals };
+    changed = true;
+  } else if (seed.budget && work.budget) {
+    const actuals = mergeById(seed.budget.actuals || [], work.budget.actuals || [], "orderRef");
+    if (actuals.length > (work.budget.actuals || []).length) { work.budget.actuals = actuals; changed = true; }
+  }
+  const documentKey = row => norm(row.title);
+  const localDocuments = new Map((work.documents || []).map(row => [documentKey(row), row]));
+  const mergedDocuments = (seed.documents || []).map(row => {
+    const localDocument = localDocuments.get(documentKey(row));
+    if (!localDocument) return row;
+    const pristine = ["", "Pendente"].includes(localDocument.status || "") && !localDocument.expiry && !localDocument.owner && !localDocument.notes && !localDocument.driveUrl && !(localDocument.files || []).length;
+    return pristine ? { ...localDocument, ...row } : { ...row, ...localDocument };
+  });
+  const seedDocumentKeys = new Set((seed.documents || []).map(documentKey));
+  mergedDocuments.push(...(work.documents || []).filter(row => !seedDocumentKeys.has(documentKey(row))));
+  if (mergedDocuments.length > (work.documents || []).length) { work.documents = mergedDocuments; changed = true; }
+  for (const field of ["journal", "tasks", "contacts"]) {
+    const merged = mergeById(seed[field] || [], work[field] || []);
+    if (merged.length > (work[field] || []).length) { work[field] = merged; changed = true; }
+  }
+  return { work, changed };
 }
 function newWork(clientId, clientName = "Obra") {
   const now = isoNow();
@@ -144,9 +328,12 @@ function normalizeWork(incoming, existing) {
 }
 async function getOrCreateWork(clientId, clientName = "") {
   const rows = await readWorks(); let work = rows.find(row => row.clientId === clientId);
-  if (!work) { work = newWork(clientId, clientName || clientId); rows.unshift(work); await writeWorks(rows); }
+  if (!work) { work = (await publishedWork(clientId)) || newWork(clientId, clientName || clientId); rows.unshift(work); await writeWorks(rows); }
   else {
     let changed = false;
+    const restored = restorePublishedWork(work, await publishedWork(clientId));
+    work = restored.work;
+    if (restored.changed) { rows[rows.findIndex(row => row.clientId === clientId)] = work; changed = true; }
     if (!Array.isArray(work.journal)) { work.journal = []; changed = true; }
     const phases = (work.phases || []).filter(row => norm(row.name) !== "documentacao");
     if (phases.length !== (work.phases || []).length) { work.phases = phases.map((row, order) => ({ ...row, order })); changed = true; }
@@ -171,7 +358,7 @@ function newQuote(options = {}) {
     id: uid("cot"), status: "rascunho", createdAt: isoNow(), updatedAt: isoNow(),
     clientId: String(options.clientId || "deterlimp"), clientName: String(options.clientName || work),
     request: { number: "", category: "", date: new Date().toISOString().slice(0, 10), neededDate: "", costCenter: work.toUpperCase(), requester: "", work, items: [] },
-    suppliers: [], files: [], divergences: [], generated: []
+    suppliers: [], files: [], divergences: [], generated: [], approval: null, purchaseOrders: []
   };
 }
 
@@ -204,6 +391,11 @@ function run(command, args) {
 }
 
 async function extractWorkbook(filePath) {
+  if (isVercel) {
+    const workbook = XLSX.read(await fs.readFile(filePath), { type: "buffer", cellDates: true });
+    const tables = workbook.SheetNames.map(name => XLSX.utils.sheet_to_json(workbook.Sheets[name], { header: 1, raw: false, defval: "" }));
+    return { text: tables.map(table => table.map(row => row.join(" | ")).join("\n")).join("\n"), tables, method: "planilha-node", confidence: 0.98 };
+  }
   const { FileBlob, SpreadsheetFile } = await artifactTool();
   const workbook = await SpreadsheetFile.importXlsx(await FileBlob.load(filePath));
   const tables = [];
@@ -221,6 +413,17 @@ async function extractDocument(filePath, originalName) {
   const ext = path.extname(originalName).toLowerCase();
   if ([".xlsx", ".xls"].includes(ext)) return extractWorkbook(filePath);
   if ([".png", ".jpg", ".jpeg", ".webp", ".bmp"].includes(ext)) return ocrImage(filePath);
+  if (isVercel && ext === ".pdf") {
+    const parsed = await pdfParse(await fs.readFile(filePath));
+    const text = parsed.text || "";
+    return { text, tables: [], method: text.replace(/\s/g, "").length >= 50 ? "pdf-texto-node" : "pdf-sem-texto", confidence: text.replace(/\s/g, "").length >= 50 ? 0.9 : 0.15 };
+  }
+  if (isVercel && [".txt", ".csv", ".tsv"].includes(ext)) {
+    const text = await fs.readFile(filePath, "utf8");
+    const separator = ext === ".tsv" ? "\t" : ",";
+    const tables = ext === ".txt" ? [] : [text.split(/\r?\n/).filter(Boolean).map(line => line.split(separator))];
+    return { text, tables, method: ext.slice(1), confidence: 0.95 };
+  }
   if ([".txt", ".csv", ".tsv", ".pdf"].includes(ext)) {
     const raw = await run(pythonPath, [path.join(root, "scripts", "extract_document.py"), filePath]);
     const parsed = JSON.parse(raw);
@@ -283,6 +486,17 @@ function textRequestItems(text) {
   return items;
 }
 
+function compactTextRequestItems(text) {
+  const items = [];
+  const pattern = /^(\d{1,2})(\d+(?:[.,]\d+))\s*(UN|BR|PC|PÇ|PCA|CX|KG|G|M|M2|M3|L|LT|RL|PAR)\s*([\s\S]*?)(\d{2}\/\d{2}\/\d{4})\s*$/gmi;
+  for (const match of String(text).matchAll(pattern)) {
+    const description = match[4].replace(/\s+/g, " ").trim();
+    if (!description || /itemquantidade|descricao dos materiais/i.test(description)) continue;
+    items.push({ id: uid("item"), number: match[1], quantity: parseNumber(match[2]), unit: match[3].toUpperCase(), description, neededDate: match[5] });
+  }
+  return items;
+}
+
 function parseRequest(extraction) {
   const text = extraction.text || "";
   const n = norm(text);
@@ -298,7 +512,7 @@ function parseRequest(extraction) {
   return {
     number, category: /^hidraulica$/i.test(normalizedCategory) ? "Hidráulica" : normalizedCategory,
     date, neededDate: items.find(item => item.neededDate)?.neededDate || "", costCenter, requester,
-    work: costCenter || "Deterlimp", items: items.length ? items : textRequestItems(text), rawText: text, extractionMethod: extraction.method, extractionConfidence: extraction.confidence
+    work: costCenter || "Deterlimp", items: items.length ? items : (textRequestItems(text).length ? textRequestItems(text) : compactTextRequestItems(text)), rawText: text, extractionMethod: extraction.method, extractionConfidence: extraction.confidence
   };
 }
 
@@ -499,7 +713,9 @@ function reconcile(quote) {
     }
     for (const item of supplier.items || []) {
       let best = { score: 0, item: null };
-      for (const requestItem of requestItems) {
+      const lockedRequest = item.lockedMatch && item.requestItemId ? requestItems.find(row => row.id === item.requestItemId) : null;
+      if (lockedRequest) best = { score: 1, item: lockedRequest };
+      for (const requestItem of lockedRequest ? [] : requestItems) {
         let score = similarity(item.description, requestItem.description);
         if (item.quantity && requestItem.quantity && Math.abs(item.quantity - requestItem.quantity) < 0.0001) score += 0.12;
         const comparableUnit = unit => norm(unit).replace(/^(?:me|mt|ml|m)$/, "m").replace(/^pc$/, "pc");
@@ -511,7 +727,7 @@ function reconcile(quote) {
       item.requestItemId = best.score >= 0.42 ? best.item?.id || "" : "";
       item.confidence = Number(best.score.toFixed(2));
       if (!item.requestItemId) {
-        divergences.push({ id: `${supplier.id}:${item.id}:unmatched`, supplierId: supplier.id, itemId: item.id, type: "unmatched", severity: "blocking", message: `Item “${item.description}” não foi relacionado ao pedido.`, resolved: false });
+        divergences.push({ id: `${supplier.id}:${item.id}:unmatched`, supplierId: supplier.id, itemId: item.id, type: item.extra ? "extra" : "unmatched", severity: item.extra ? "warning" : "blocking", message: item.extra ? `Item extra de ${supplier.name || "fornecedor"}: “${item.description}”.` : `Item “${item.description}” não foi relacionado ao pedido.`, resolved: Boolean(item.extra) });
         continue;
       }
       matched.add(item.requestItemId);
@@ -528,7 +744,107 @@ function reconcile(quote) {
 }
 
 function excelCol(index) { let result = ""; for (let n = index; n; n = Math.floor((n - 1) / 26)) result = String.fromCharCode(65 + (n - 1) % 26) + result; return result; }
+async function buildWorkbookFromDriveTemplate(quote, targetPath) {
+  const template = quote.request.mapTemplate;
+  const response = await driveFetch(`https://www.googleapis.com/drive/v3/files/${template.driveId}?alt=media`);
+  await fs.writeFile(targetPath, Buffer.from(await response.arrayBuffer()));
+  const workbook = XLSX.readFile(targetPath, { cellStyles: true, cellFormula: true, cellDates: true });
+  const sheet = workbook.Sheets[workbook.SheetNames[0]];
+  const originalCells = { ...sheet };
+  const templateItemCount = 17, itemCount = Math.max(1, quote.request.items?.length || 0), delta = itemCount - templateItemCount;
+  const moved = {};
+  for (const [address, cell] of Object.entries(sheet)) {
+    if (address.startsWith("!")) continue;
+    const decoded = XLSX.utils.decode_cell(address);
+    if (decoded.r >= 23) moved[XLSX.utils.encode_cell({ r: decoded.r + delta, c: decoded.c })] = cell;
+    else if (decoded.r < 6) moved[address] = cell;
+  }
+  const styleCell = (source, value, type) => {
+    const base = originalCells[source] || {};
+    const cell = { ...base, v: value };
+    delete cell.f; delete cell.w;
+    if (type) cell.t = type; else if (typeof value === "number") cell.t = "n"; else cell.t = "s";
+    return cell;
+  };
+  Object.keys(sheet).filter(key => !key.startsWith("!")).forEach(key => delete sheet[key]);
+  Object.assign(sheet, moved);
+  const summaryStart = 6 + itemCount;
+  sheet.D1 = styleCell("D1", "PLANILHA ORÇAMENTÁRIA ");
+  sheet.D2 = styleCell("D2", quote.request.date ? new Date(`${String(quote.request.date).slice(0,10)}T12:00:00`) : new Date(), "d");
+  sheet.D3 = styleCell("D3", `OBRA: ${String(quote.request.work || quote.clientName || "ABSOLUTTA").toUpperCase()}`);
+  const suppliers = (quote.suppliers || []).slice(0, 3);
+  ["E3","G3","I3"].forEach((address, index) => { sheet[address] = styleCell("E3", suppliers[index]?.name || ""); });
+  const itemStyles = ["A7","B7","C7","D7","E7","F7","G7","H7","I7","J7","K7","L7"];
+  (quote.request.items || []).forEach((requestItem, index) => {
+    const row = 7 + index;
+    const values = [requestItem.number || index + 1, Number(requestItem.quantity || 0), requestItem.unit || "UN", requestItem.description || ""];
+    suppliers.forEach(supplier => {
+      const match = (supplier.items || []).find(item => item.requestItemId === requestItem.id);
+      const unit = Number(match?.unitPrice || 0); values.push(unit || "", unit ? unit * Number(requestItem.quantity || 0) : "");
+    });
+    while (values.length < 10) values.push("", "");
+    const totals = [values[5], values[7], values[9]].filter(value => typeof value === "number" && value > 0);
+    const minimum = totals.length ? Math.min(...totals) : "";
+    values.push(minimum ? minimum / Number(requestItem.quantity || 1) : "", minimum);
+    values.forEach((value, column) => { sheet[XLSX.utils.encode_cell({ r: row - 1, c: column })] = styleCell(itemStyles[column], value); });
+  });
+  const labels = ["VALOR TOTAL","FRETE","CONDIÇÕES DE PAGAMENTO","DESCONTO À VISTA","VALOR PAGAMENTO À VISTA"];
+  labels.forEach((label, index) => { sheet[`A${summaryStart + index}`] = styleCell(`A${24 + index}`, label); });
+  suppliers.forEach((supplier, index) => {
+    const column = ["E","G","I"][index];
+    const itemTotal = (quote.request.items || []).reduce((sum, requestItem) => { const match = (supplier.items || []).find(item => item.requestItemId === requestItem.id); return sum + Number(match?.unitPrice || 0) * Number(requestItem.quantity || 0); }, 0);
+    const freight = supplier.freightIncluded ? 0 : Number(supplier.freight || 0), discount = Number(supplier.discount || 0), other = Number(supplier.otherCharges || 0);
+    [itemTotal, freight + other, supplier.payment || "Não informado", discount, itemTotal + freight + other - discount].forEach((value, rowIndex) => { sheet[`${column}${summaryStart + rowIndex}`] = styleCell(`E${24 + rowIndex}`, value); });
+    sheet[`${column}${summaryStart + 6}`] = styleCell("E30", supplier.notes || [supplier.delivery && `Entrega: ${supplier.delivery}`, supplier.validity && `Validade: ${supplier.validity}`].filter(Boolean).join(" • "));
+  });
+  sheet[`K${summaryStart}`] = styleCell("K24", "N/C"); sheet[`K${summaryStart + 4}`] = styleCell("K28", "N/C");
+  sheet[`K${summaryStart + 6}`] = styleCell("K30", `Mapa gerado automaticamente a partir do pedido ${quote.request.number || ""} e dos orçamentos relacionados.`);
+  sheet["!merges"] = (sheet["!merges"] || []).map(merge => merge.s.r >= 23 ? { s: { ...merge.s, r: merge.s.r + delta }, e: { ...merge.e, r: merge.e.r + delta } } : merge).filter(merge => merge.e.r < summaryStart + 8);
+  sheet["!ref"] = `A1:L${summaryStart + 7}`;
+  XLSX.writeFile(workbook, targetPath, { bookType: "xlsx", cellStyles: true });
+  return { previewPath: "", errors: "", inspection: "modelo-drive" };
+}
+async function buildWorkbookNode(quote, targetPath) {
+  const workbook = new ExcelJS.Workbook();
+  workbook.creator = "Absolutta Dashboard";
+  const sheet = workbook.addWorksheet("Mapa de Cotação", { views: [{ state: "frozen", ySplit: 7 }] });
+  const suppliers = (quote.suppliers || []).slice(0, 5);
+  const columns = [
+    { header: "ITEM", key: "item", width: 9 }, { header: "DESCRIÇÃO", key: "description", width: 52 },
+    { header: "UNID.", key: "unit", width: 10 }, { header: "QTDE.", key: "quantity", width: 11 }
+  ];
+  suppliers.forEach((supplier, index) => { columns.push({ header: `${supplier.name || `FORNECEDOR ${index + 1}`} | UNIT.`, key: `s${index}u`, width: 17 }); columns.push({ header: "TOTAL", key: `s${index}t`, width: 17 }); });
+  columns.push({ header: "MENOR TOTAL", key: "best", width: 18 }, { header: "MELHOR FORNECEDOR", key: "winner", width: 24 });
+  sheet.columns = columns;
+  sheet.insertRows(1, [[quote.clientName || quote.request.work || "ABSOLUTTA"], ["MAPA DE COTAÇÃO"], [`Pedido ${quote.request.category || ""} ${quote.request.number || ""}`], [`Solicitante: ${quote.request.requester || "Não informado"}`], [`Data: ${displayDate(quote.request.date)}`], []]);
+  sheet.mergeCells(1, 1, 1, columns.length); sheet.mergeCells(2, 1, 2, columns.length); sheet.mergeCells(3, 1, 3, columns.length); sheet.mergeCells(4, 1, 4, columns.length); sheet.mergeCells(5, 1, 5, columns.length);
+  const headerRow = 7;
+  (quote.request.items || []).forEach((requestItem, index) => {
+    const row = sheet.addRow({ item: requestItem.number || index + 1, description: requestItem.description, unit: requestItem.unit || "UN", quantity: Number(requestItem.quantity || 0) });
+    const totalCells = [];
+    suppliers.forEach((supplier, supplierIndex) => {
+      const match = (supplier.items || []).find(item => item.requestItemId === requestItem.id);
+      const unitColumn = 5 + supplierIndex * 2, totalColumn = unitColumn + 1;
+      if (match && Number(match.unitPrice) > 0) { row.getCell(unitColumn).value = Number(match.unitPrice); row.getCell(totalColumn).value = { formula: `${row.getCell(4).address}*${row.getCell(unitColumn).address}` }; totalCells.push(row.getCell(totalColumn).address); }
+    });
+    const bestColumn = 5 + suppliers.length * 2;
+    if (totalCells.length) { row.getCell(bestColumn).value = { formula: `MIN(${totalCells.join(",")})` }; row.getCell(bestColumn + 1).value = suppliers.map((supplier, supplierIndex) => `IF(${row.getCell(6 + supplierIndex * 2).address}=${row.getCell(bestColumn).address},"${String(supplier.name || "").replaceAll('"', '""')}","")`).join("&"); row.getCell(bestColumn + 1).value = { formula: row.getCell(bestColumn + 1).value }; }
+  });
+  const lastRow = sheet.lastRow.number;
+  const total = sheet.addRow(["", "TOTAL POR FORNECEDOR"]);
+  suppliers.forEach((supplier, index) => { const col = 6 + index * 2; total.getCell(col).value = { formula: `SUM(${sheet.getCell(headerRow + 1, col).address}:${sheet.getCell(lastRow, col).address})+${Number(supplier.freightIncluded ? 0 : supplier.freight || 0)}+${Number(supplier.otherCharges || 0)}-${Number(supplier.discount || 0)}` }; });
+  sheet.getRow(1).font = { bold: true, size: 15, color: { argb: "FFFFFFFF" } }; sheet.getRow(1).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF172033" } };
+  sheet.getRow(2).font = { bold: true, size: 18, color: { argb: "FF172033" } }; sheet.getRow(2).fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FFA7C63B" } };
+  sheet.getRow(headerRow).eachCell(cell => { cell.font = { bold: true, color: { argb: "FFFFFFFF" } }; cell.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF172033" } }; cell.alignment = { wrapText: true, vertical: "middle", horizontal: "center" }; });
+  sheet.eachRow((row, number) => { if (number >= headerRow) row.eachCell(cell => { cell.border = { top: { style: "thin", color: { argb: "FFB8BEC8" } }, left: { style: "thin", color: { argb: "FFB8BEC8" } }, bottom: { style: "thin", color: { argb: "FFB8BEC8" } }, right: { style: "thin", color: { argb: "FFB8BEC8" } } }; }); });
+  for (let col = 5; col <= columns.length - 2; col++) sheet.getColumn(col).numFmt = '"R$" #,##0.00';
+  await workbook.xlsx.writeFile(targetPath);
+  return { previewPath: "", errors: "", inspection: "exceljs" };
+}
+
 async function buildWorkbook(quote, targetPath) {
+  if (quote.request.mapTemplate?.driveId && driveConfigured()) return buildWorkbookFromDriveTemplate(quote, targetPath);
+  if (isVercel) return buildWorkbookNode(quote, targetPath);
   const { Workbook, SpreadsheetFile } = await artifactTool();
   const workbook = Workbook.create();
   const sheet = workbook.worksheets.add("Mapa de Cotação");
@@ -620,6 +936,145 @@ async function buildWorkbook(quote, targetPath) {
   return { previewPath, errors: errors.ndjson || "" };
 }
 
+function purchaseOrderCustomer(quote) {
+  if ((quote.clientId || "").toLowerCase() === "deterlimp") return {
+    legalName: "DETERLIMP INDUSTRIAL LIMPEZA E COSMETICO LTDA",
+    document: "01.300.954/0001-82",
+    billingAddress: "Avenida das Cerejeiras, 619 - Capela Velha",
+    deliveryAddress: "Avenida das Cerejeiras, 619 - Capela Velha",
+    city: "Araucária - PR",
+    zipCode: "83705-340",
+    receiver: "A confirmar",
+    buyer: "Brendon"
+  };
+  return {
+    legalName: quote.clientName || quote.request.work || "Cliente",
+    document: "A confirmar", billingAddress: "A confirmar",
+    deliveryAddress: "A confirmar", city: "", zipCode: "",
+    receiver: "A confirmar", buyer: "Brendon"
+  };
+}
+
+async function buildPurchaseOrderWorkbookNode(quote, supplier, targetPath) {
+  const workbook = new ExcelJS.Workbook(); const sheet = workbook.addWorksheet("Ordem de Compra", { views: [{ state: "frozen", ySplit: 18 }] });
+  const customer = purchaseOrderCustomer(quote); const requestItems = quote.request.items || [];
+  const selected = (supplier.items || []).map(item => ({ item, request: requestItems.find(row => row.id === item.requestItemId) })).filter(row => row.request && Number(row.item.unitPrice) > 0);
+  sheet.columns = [{ width: 10 }, { width: 52 }, { width: 11 }, { width: 11 }, { width: 18 }, { width: 18 }];
+  const mergeSet = (range, value) => { sheet.mergeCells(range); sheet.getCell(range.split(":")[0]).value = value; };
+  mergeSet("A1:F1", customer.legalName); mergeSet("A2:F2", customer.billingAddress); mergeSet("A3:F3", `CNPJ/CPF: ${customer.document}`);
+  sheet.getCell("E5").value = "DATA:"; sheet.getCell("F5").value = new Date(); sheet.getCell("F5").numFmt = "dd/mm/yyyy";
+  sheet.getCell("E7").value = "COMPRADOR:"; sheet.getCell("F7").value = customer.buyer; sheet.getCell("E9").value = "N. SOLICITAÇÃO:"; sheet.getCell("F9").value = String(quote.request.number || quote.id);
+  mergeSet("A11:F11", "ORDEM DE COMPRA");
+  [[13,"OBRA:",quote.request.work || quote.clientName || ""],[14,"ENDEREÇO PARA ENTREGA:",`${customer.deliveryAddress}${customer.city ? ` — ${customer.city}` : ""}`],[15,"ADICIONAR NÚMERO DA O.C. NA NOTA FISCAL:",String(quote.request.number || quote.id)],[16,"RECEBIMENTO DE MATERIAL COM:",customer.receiver]].forEach(([row,label,value]) => { mergeSet(`A${row}:B${row}`, label); mergeSet(`C${row}:F${row}`, value); });
+  sheet.getRow(18).values = ["ITEM","DESCRIÇÃO","UNID.","QTDE.","VALOR UNIT.","VALOR TOTAL"];
+  let rowNumber = 19;
+  selected.forEach(({ item, request }, index) => { const row = sheet.getRow(rowNumber++); row.values = [index + 1, `${request.description}${item.brand ? ` — ${item.brand}` : ""}`, request.unit || "UN", Number(request.quantity || 0), Number(item.unitPrice || 0), { formula: `D${row.number}*E${row.number}` }]; });
+  const addCharge = (description, value) => { if (!Number(value)) return; const row = sheet.getRow(rowNumber++); row.values = [rowNumber - 19, description, "UN", 1, Number(value), { formula: `D${row.number}*E${row.number}` }]; };
+  if (!supplier.freightIncluded) addCharge("FRETE", supplier.freight); addCharge("OUTRAS DESPESAS", supplier.otherCharges); addCharge("DESCONTO", -Number(supplier.discount || 0));
+  const lastItemRow = rowNumber - 1, totalRow = Math.max(36, rowNumber + 1);
+  sheet.getCell(`E${totalRow}`).value = "TOTAL GERAL"; sheet.getCell(`F${totalRow}`).value = { formula: `SUM(F19:F${lastItemRow})` };
+  sheet.getCell(`E${totalRow + 2}`).value = "FORNECEDOR:"; sheet.getCell(`F${totalRow + 2}`).value = supplier.name || ""; sheet.getCell(`E${totalRow + 3}`).value = "CONTATO:"; sheet.getCell(`F${totalRow + 3}`).value = supplier.seller || ""; sheet.getCell(`E${totalRow + 4}`).value = "TELEFONE:"; sheet.getCell(`F${totalRow + 4}`).value = supplier.phone || "A confirmar";
+  const commercialHeader = totalRow + 6; sheet.getRow(commercialHeader).values = ["O.C.","FORNECEDOR","VALOR","","DATA ENTREGA","PAGAMENTO"]; sheet.getRow(commercialHeader + 1).values = [String(quote.request.number || quote.id), supplier.name || "", { formula: `F${totalRow}` }, "", supplier.delivery || "Não informado", supplier.payment || "Não informado"];
+  const notesRow = commercialHeader + 4; mergeSet(`A${notesRow}:F${notesRow}`, "OBSERVAÇÕES:"); [`Dados para faturamento: ${customer.legalName} — CNPJ/CPF: ${customer.document}`,`Prazo de entrega: ${supplier.delivery || "Não informado"}`,`Endereço para entrega: ${customer.deliveryAddress}${customer.city ? ` — ${customer.city}` : ""}`,`Validade do orçamento: ${supplier.validity || "Não informado"}`,`Observação da aprovação: ${quote.approval?.notes || "Sem observações"}`].forEach((note,index)=>mergeSet(`A${notesRow + 1 + index}:F${notesRow + 1 + index}`,note));
+  [[1,"FF172033","FFFFFFFF",15],[11,"FFA7C63B","FF172033",18],[18,"FF172033","FFFFFFFF",10],[commercialHeader,"FFE8EBF0","FF172033",10],[notesRow,"FFE8EBF0","FF172033",10]].forEach(([row,fill,color,size])=>{ sheet.getRow(row).eachCell(cell=>{cell.fill={type:"pattern",pattern:"solid",fgColor:{argb:fill}};cell.font={bold:true,size,color:{argb:color}};cell.alignment={vertical:"middle",horizontal:"center",wrapText:true};}); });
+  sheet.getCell(`E${totalRow}`).font = sheet.getCell(`F${totalRow}`).font = { bold: true, size: 11 }; sheet.getCell(`E${totalRow}`).fill = sheet.getCell(`F${totalRow}`).fill = { type:"pattern",pattern:"solid",fgColor:{argb:"FFF3F8DF"} };
+  for (let row = 18; row <= lastItemRow; row++) sheet.getRow(row).eachCell(cell=>cell.border={top:{style:"thin"},left:{style:"thin"},bottom:{style:"thin"},right:{style:"thin"}});
+  sheet.getColumn(5).numFmt = sheet.getColumn(6).numFmt = '"R$" #,##0.00'; sheet.getRow(11).height = 30; sheet.getRow(14).height = 36;
+  await workbook.xlsx.writeFile(targetPath); return { previewPath: "", errors: "", inspection: "exceljs" };
+}
+
+async function buildPurchaseOrderWorkbook(quote, supplier, targetPath) {
+  if (isVercel) return buildPurchaseOrderWorkbookNode(quote, supplier, targetPath);
+  const { Workbook, SpreadsheetFile } = await artifactTool();
+  const workbook = Workbook.create();
+  const sheet = workbook.worksheets.add("Ordem de Compra");
+  sheet.showGridLines = false;
+  const customer = purchaseOrderCustomer(quote);
+  const requestItems = quote.request.items || [];
+  const selectedItems = (supplier.items || [])
+    .map(item => ({ item, request: requestItems.find(row => row.id === item.requestItemId) }))
+    .filter(row => row.request && Number(row.item.unitPrice) > 0);
+  const itemRows = selectedItems.map(({ item, request }, index) => [
+    index + 1,
+    `${request.description}${item.brand ? ` — ${item.brand}` : ""}`,
+    request.unit || "UN",
+    Number(request.quantity || 0),
+    Number(item.unitPrice || 0),
+    null
+  ]);
+  if (!supplier.freightIncluded && Number(supplier.freight || 0) > 0) itemRows.push([itemRows.length + 1, "FRETE", "UN", 1, Number(supplier.freight), null]);
+  if (Number(supplier.otherCharges || 0) > 0) itemRows.push([itemRows.length + 1, "OUTRAS DESPESAS", "UN", 1, Number(supplier.otherCharges), null]);
+  if (Number(supplier.discount || 0) > 0) itemRows.push([itemRows.length + 1, "DESCONTO", "UN", 1, -Number(supplier.discount), null]);
+  const firstItemRow = 19;
+  const lastItemRow = firstItemRow + itemRows.length - 1;
+  const totalRow = Math.max(36, lastItemRow + 2);
+  const supplierRow = totalRow + 2;
+  const commercialHeaderRow = supplierRow + 4;
+  const commercialRow = commercialHeaderRow + 1;
+  const notesRow = commercialRow + 4;
+
+  sheet.mergeCells("A1:F1"); sheet.getRange("A1").values = [[customer.legalName]];
+  sheet.mergeCells("A2:F2"); sheet.getRange("A2").values = [[customer.billingAddress]];
+  sheet.mergeCells("A3:F3"); sheet.getRange("A3").values = [[`CNPJ/CPF: ${customer.document}`]];
+  sheet.getRange("E5:F9").values = [["DATA:", new Date()], ["", ""], ["COMPRADOR:", customer.buyer], ["", ""], ["N. SOLICITAÇÃO:", String(quote.request.number || quote.id)]];
+  sheet.mergeCells("A11:F11"); sheet.getRange("A11").values = [["ORDEM DE COMPRA"]];
+  for (const row of [13, 14, 15, 16]) { sheet.mergeCells(`A${row}:B${row}`); sheet.mergeCells(`C${row}:F${row}`); }
+  sheet.getRange("A13:A16").values = [["OBRA:"], ["ENDEREÇO PARA ENTREGA:"], ["ADICIONAR NÚMERO DA O.C. NA NOTA FISCAL:"], ["RECEBIMENTO DE MATERIAL COM:"]];
+  sheet.getRange("C13:C16").values = [[quote.request.work || quote.clientName || ""], [""], [String(quote.request.number || quote.id)], [customer.receiver]];
+  sheet.mergeCells("C14:F14"); sheet.getRange("C14").values = [[`${customer.deliveryAddress}${customer.city ? `\n${customer.city}` : ""}${customer.zipCode ? `\nCEP: ${customer.zipCode}` : ""}`]];
+  sheet.getRange("A18:F18").values = [["ITEM", "DESCRIÇÃO", "UNID.", "QTDE.", "VALOR UNIT.", "VALOR TOTAL"]];
+  sheet.getRange(`A${firstItemRow}:F${lastItemRow}`).values = itemRows;
+  for (let row = firstItemRow; row <= lastItemRow; row++) sheet.getRange(`F${row}`).formulas = [[`=D${row}*E${row}`]];
+  sheet.getRange(`E${totalRow}:F${totalRow}`).values = [["TOTAL GERAL", null]];
+  sheet.getRange(`F${totalRow}`).formulas = [[`=SUM(F${firstItemRow}:F${lastItemRow})`]];
+  sheet.getRange(`E${supplierRow}:F${supplierRow + 2}`).values = [["FORNECEDOR:", supplier.name || ""], ["CONTATO:", supplier.seller || ""], ["TELEFONE:", supplier.phone || "A confirmar"]];
+  sheet.getRange(`A${commercialHeaderRow}:F${commercialHeaderRow}`).values = [["O.C.", "FORNECEDOR", "VALOR", "", "DATA ENTREGA", "PAGAMENTO"]];
+  sheet.getRange(`A${commercialRow}:F${commercialRow}`).values = [[String(quote.request.number || quote.id), supplier.name || "", null, "", supplier.delivery || "Não informado", supplier.payment || "Não informado"]];
+  sheet.getRange(`C${commercialRow}`).formulas = [[`=F${totalRow}`]];
+  sheet.mergeCells(`A${notesRow}:F${notesRow}`); sheet.getRange(`A${notesRow}`).values = [["OBSERVAÇÕES:"]];
+  const notes = [
+    `Dados para faturamento: ${customer.legalName} — CNPJ/CPF: ${customer.document}`,
+    `Prazo de entrega: ${supplier.delivery || "Não informado"}`,
+    `Endereço para entrega: ${customer.deliveryAddress}${customer.city ? ` — ${customer.city}` : ""}`,
+    `Endereço de cobrança: ${customer.billingAddress}`,
+    `Validade do orçamento: ${supplier.validity || "Não informado"}`,
+    `Observação da aprovação: ${quote.approval?.notes || "Sem observações"}`
+  ];
+  notes.forEach((note, index) => { const row = notesRow + 1 + index; sheet.mergeCells(`A${row}:F${row}`); sheet.getRange(`A${row}`).values = [[note]]; });
+
+  const usedEnd = notesRow + notes.length;
+  sheet.getRange(`A1:F${usedEnd}`).format.font = { name: "Arial", size: 10, color: "#172033" };
+  sheet.getRange("A1:F1").format = { fill: "#172033", font: { name: "Arial", size: 14, bold: true, color: "#FFFFFF" }, horizontalAlignment: "center", verticalAlignment: "center" };
+  sheet.getRange("A11:F11").format = { fill: "#A7C63B", font: { name: "Arial", size: 18, bold: true, color: "#172033" }, horizontalAlignment: "center", verticalAlignment: "center" };
+  sheet.getRange("A18:F18").format = { fill: "#172033", font: { name: "Arial", size: 10, bold: true, color: "#FFFFFF" }, horizontalAlignment: "center", verticalAlignment: "center", wrapText: true };
+  sheet.getRange(`A${commercialHeaderRow}:F${commercialHeaderRow}`).format = { fill: "#E8EBF0", font: { name: "Arial", size: 9, bold: true, color: "#172033" }, horizontalAlignment: "center", verticalAlignment: "center", wrapText: true };
+  sheet.getRange(`A18:F${lastItemRow}`).format.borders = { preset: "all", style: "thin", color: "#9AA2AF" };
+  sheet.getRange(`E${totalRow}:F${totalRow}`).format = { fill: "#F3F8DF", font: { name: "Arial", size: 11, bold: true, color: "#172033" }, borders: { preset: "all", style: "medium", color: "#172033" } };
+  sheet.getRange(`A${commercialHeaderRow}:F${commercialRow}`).format.borders = { preset: "all", style: "thin", color: "#9AA2AF" };
+  sheet.getRange(`A${notesRow}:F${notesRow}`).format = { fill: "#E8EBF0", font: { name: "Arial", size: 10, bold: true, color: "#172033" } };
+  sheet.getRange(`B${firstItemRow}:B${lastItemRow}`).format.wrapText = true;
+  sheet.getRange(`C${firstItemRow}:D${lastItemRow}`).format.horizontalAlignment = "center";
+  sheet.getRange(`E${firstItemRow}:F${lastItemRow}`).format.numberFormat = '"R$" #,##0.00';
+  sheet.getRange(`F${totalRow}`).format.numberFormat = '"R$" #,##0.00';
+  sheet.getRange(`C${commercialRow}`).format.numberFormat = '"R$" #,##0.00';
+  sheet.getRange("F5").format.numberFormat = "dd/mm/yyyy";
+  sheet.getRange("A:A").format.columnWidth = 10; sheet.getRange("B:B").format.columnWidth = 50;
+  sheet.getRange("C:C").format.columnWidth = 11; sheet.getRange("D:D").format.columnWidth = 11;
+  sheet.getRange("E:F").format.columnWidth = 17;
+  sheet.getRange("A1:F1").format.rowHeight = 28; sheet.getRange("A11:F11").format.rowHeight = 32;
+  sheet.getRange("A14:F14").format.rowHeight = 48; sheet.getRange(`A${firstItemRow}:F${lastItemRow}`).format.rowHeight = 26;
+  sheet.freezePanes.freezeRows(18);
+
+  const keyRange = await workbook.inspect({ kind: "table", range: `Ordem de Compra!A1:F${usedEnd}`, include: "values,formulas", tableMaxRows: usedEnd, tableMaxCols: 6 });
+  const errors = await workbook.inspect({ kind: "match", searchTerm: "#REF!|#DIV/0!|#VALUE!|#NAME\\?|#N/A", options: { useRegex: true, maxResults: 100 }, summary: "erros finais" });
+  const preview = await workbook.render({ sheetName: "Ordem de Compra", range: `A1:F${usedEnd}`, scale: 1.25, format: "png" });
+  const previewPath = targetPath.replace(/\.xlsx$/i, ".png");
+  await fs.writeFile(previewPath, new Uint8Array(await preview.arrayBuffer()));
+  const output = await SpreadsheetFile.exportXlsx(workbook);
+  await output.save(targetPath);
+  return { previewPath, errors: errors.ndjson || "", inspection: keyRange.ndjson || "" };
+}
+
 async function importIntoQuote(quote, role, supplierId, extraction, fileRecord) {
   if (role === "request") quote.request = { ...quote.request, ...parseRequest(extraction) };
   else {
@@ -644,11 +1099,48 @@ async function serveFile(res, filePath, downloadName = "") {
   res.writeHead(200, headers); fsSync.createReadStream(filePath).pipe(res);
 }
 
-const server = http.createServer(async (req, res) => {
+export async function handleRequest(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const parts = url.pathname.split("/").filter(Boolean);
-    if (url.pathname === "/api/health") return json(res, 200, { ok: true, localOnly: true, formats: ["pdf", "xlsx", "xls", "csv", "txt", "png", "jpg", "jpeg"] });
+    if (url.pathname === "/api/health") return json(res, 200, { ok: true, runtime: isVercel ? "vercel" : "local", driveConnected: driveConfigured(), formats: ["pdf", "xlsx", "xls", "csv", "txt", "png", "jpg", "jpeg"] });
+    if (url.pathname === "/api/base" && req.method === "GET") {
+      const clientId = cleanName(url.searchParams.get("clientId")); const base = spreadsheetBases[clientId];
+      if (!base) return json(res, 404, { error: "Base deste cliente não configurada." });
+      if (!driveConfigured()) return json(res, 503, { error: "Google Drive ainda não conectado." });
+      const response = await driveFetch(`https://docs.google.com/spreadsheets/d/${base.id}/export?format=csv&gid=${base.gid}`);
+      const csv = await response.text(); res.writeHead(200, { "Content-Type": "text/csv; charset=utf-8", "Cache-Control": "private, no-store" }); res.end(csv); return;
+    }
+    if (url.pathname === "/api/order-assets" && req.method === "GET") {
+      const clientId = cleanName(url.searchParams.get("clientId")); const number = String(url.searchParams.get("number") || "").replace(/^0+/, ""); const category = norm(url.searchParams.get("category")); const description = norm(url.searchParams.get("description"));
+      if (driveConfigured() && driveRoots[clientId]) {
+        const folder = await findOrderFolder(driveRoots[clientId], { request: { number, category, description, work: url.searchParams.get("work") || "" } });
+        if (!folder) return json(res, 404, { error: "Não encontrei uma pasta correspondente no Drive." });
+        const files = await listDriveTree(folder.id);
+        const requestFile = files.find(file => classifyDriveFile(file) === "request");
+        const mapTemplate = files.find(file => classifyDriveFile(file) === "map");
+        let request = null; let extractionError = "";
+        if (requestFile) {
+          try {
+            const requestDir = path.join(uploadDir, "order-assets", folder.id);
+            const savedPath = await downloadDriveFile(requestFile, requestDir);
+            request = parseRequest(await extractDocument(savedPath, requestFile.name));
+          } catch (error) { extractionError = error.message; }
+        }
+        return json(res, 200, {
+          folderId: folder.id,
+          folderUrl: `https://drive.google.com/drive/folders/${folder.id}`,
+          items: request?.items || [], request,
+          complete: Boolean(request?.items?.length),
+          extractionError: requestFile && !request?.items?.length ? (extractionError || "O arquivo Pedido foi encontrado, mas nenhum item pôde ser reconhecido.") : "",
+          template: mapTemplate ? { id: mapTemplate.id, name: mapTemplate.name, mimeType: mapTemplate.mimeType, url: mapTemplate.webViewLink || `https://drive.google.com/file/d/${mapTemplate.id}/view` } : null,
+          files: files.filter(file => !file.mimeType?.endsWith("folder")).map(file => ({ ...file, role: classifyDriveFile(file), url: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view` }))
+        });
+      }
+      const pilotMatch = clientId === drivePilot.clientId && number === drivePilot.number && (category.includes("hidraul") || description.includes("hidraul"));
+      if (!pilotMatch) return json(res, 404, { error: "Ainda não há uma pasta do Drive vinculada com segurança a este pedido." });
+      return json(res, 200, { folderId: drivePilot.folderId, folderUrl: `https://drive.google.com/drive/folders/${drivePilot.folderId}`, items: drivePilot.requestItems.map(([number, quantity, unit, description]) => ({ number, quantity, unit, description, neededDate: "2026-08-22" })), files: drivePilot.files.map(file => ({ ...file, url: `https://drive.google.com/file/d/${file.id}/view` })) });
+    }
     if (parts[0] === "api" && parts[1] === "works" && parts[2]) {
       const clientId = cleanName(decodeURIComponent(parts[2]));
       const work = await getOrCreateWork(clientId, url.searchParams.get("clientName") || "");
@@ -710,6 +1202,28 @@ const server = http.createServer(async (req, res) => {
         }
         return json(res, 200, await saveQuote(reconcile(quote)));
       }
+      if (parts[3] === "drive-search" && req.method === "POST") {
+        const rootId = driveRoots[quote.clientId];
+        if (!rootId) return json(res, 400, { error: "Este cliente ainda não possui uma raiz do Google Drive configurada." });
+        if (driveConfigured()) {
+          const linkedFolderId = quote.request.driveFolderId;
+          const folder = linkedFolderId ? { id: linkedFolderId, name: "Pasta vinculada", score: 99 } : await findOrderFolder(rootId, quote);
+          if (!folder) return json(res, 404, { error: "Não encontrei uma pasta que combine com o número e a categoria deste pedido.", rootId });
+          return json(res, 200, await importOrderFolderFromDrive(quote, folder));
+        }
+        const pilotMatch = quote.clientId === drivePilot.clientId && String(quote.request.number || "").replace(/^0+/, "") === drivePilot.number && norm(quote.request.category).includes("hidraul");
+        if (!pilotMatch) return json(res, 503, { error: "A busca automática está validada no piloto Hidráulica 05. Para generalizar a todas as pastas, falta conectar a credencial server-side do Google Drive neste computador.", rootId });
+        quote.request = { ...quote.request, number: "5", category: "Hidráulica", date: "2026-08-19", neededDate: "2026-08-22", requester: "Marco Fabio Frederico", work: "Deterlimp", driveFolderId: drivePilot.folderId, items: drivePilot.requestItems.map(([number, quantity, unit, description]) => ({ id: uid("item"), number, quantity, unit, description, neededDate: "2026-08-22" })) };
+        quote.suppliers = []; quote.files = [];
+        const makeItems = rows => rows.map(([requestNumber, description, quantity, unitPrice, brand = ""]) => { const requestItem = quote.request.items.find(row => Number(row.number) === Number(requestNumber)); return { id: uid("qitem"), description, quantity, unit: requestItem?.unit || "UN", unitPrice, quotedTotal: Number((quantity * unitPrice).toFixed(2)), brand, requestItemId: requestItem?.id || "", lockedMatch: Boolean(requestItem), extra: !requestItem, confidence: requestItem ? 1 : 0 }; });
+        const supplierSeeds = [
+          { name: "Balaroti", seller: "Moreira", payment: "À vista", delivery: "24/08/2026", validity: "20/08/2026", freight: 86.44, otherCharges: 0, source: drivePilot.files[1], items: makeItems([[4,"ENGATE FLEXÍVEL 40CM TIGRE",8,8.90,"Tigre"],[5,"BRAÇO PARA CHUVEIRO 40CM",1,29.90,"Astra"],[9,"SIFÃO SANFONADO UNIVERSAL",12,7.90,"Blukit"],[11,"SPUD 1.1/2",1,10.90,"Astra"],[2,"KIT BACIA COM CAIXA ACOPLADA",3,959.90,"Deca"],[0,"VÁLVULA PARA MICTÓRIO PRESSMATIC",1,796.90,"Docol"],[8,"TORNEIRA LAVATÓRIO MESA LINK",2,403.90,"Deca"],[3,"CUBA EMBUTIR 49X36,5 OVAL",2,136.90,"Deca"],[6,"DUCHA 220V",1,149.90,"Zagonel"],[16,"VEDA ROSCA 18MMX25M",2,11.90,"Tigre"],[17,"TUBO 25MM SOLDÁVEL 6M",11,25.90,"Tigre"],[1,"MICTÓRIO COM SIFÃO INTEGRADO",1,815.90,"Deca"],[7,"ACABAMENTO REGISTRO 3/4",8,33.90,"Real"]]) },
+          { name: "Nichele", seller: "Angelica da Costa Edoardo", payment: "Cartão de crédito", delivery: "", validity: "22/08/2026", freight: 0, otherCharges: 200, source: drivePilot.files[2], items: makeItems([[1,"MICTÓRIO GELO DECA",1,816.65,"Deca"],[2,"KIT BACIA COM CAIXA ACOPLADA ASPEN",3,954.90,"Deca"],[3,"CUBA EMBUTIR OVAL 49X36,5",2,133.80,"Deca"],[4,"ENGATE FLEXÍVEL 40CM",8,55.96,"Deca"],[5,"CANO CHUVEIRO 40CM",1,23.26,"Enerbras"],[6,"DUCHA 220V",1,113.30,"Lorenzetti"],[7,"ACABAMENTO REGISTRO 3/4",8,85.15,"Deca"],[8,"TORNEIRA LAVATÓRIO MESA ALTA",2,393.04,"Deca"],[9,"SIFÃO SANFONADO",12,8.92,"Tigre"],[10,"ANEL VEDAÇÃO PARA BACIA",3,18.51,"Tigre"],[11,"SPUD PARA BACIA",1,9.23,"Tigre"],[12,"TUBO DE LIGAÇÃO",1,257.68,"Deca"],[13,"ASSENTO SANITÁRIO ASPEN",3,153.98,"Deca"],[14,"VÁLVULA DE ESCOAMENTO",2,61.65,"Deca"],[15,"PARAFUSO WC COM BUCHA 10MM",12,22.22,"Imperatriz"],[16,"VEDA ROSCA 18X25M",2,11.49,"Tigre"],[17,"TUBO SOLDÁVEL 25MM",11,27.58,"Tigre"]]) }
+        ];
+        for (const seed of supplierSeeds) { const supplierId = uid("forn"); quote.suppliers.push({ id: supplierId, name: seed.name, seller: seed.seller, payment: seed.payment, delivery: seed.delivery, validity: seed.validity, freight: seed.freight, freightIncluded: false, otherCharges: seed.otherCharges, discount: 0, notes: "", items: seed.items, sourceFileId: "" }); const fileRecord = { id: uid("arq"), role: "quote", supplierId, originalName: seed.source.name, driveId: seed.source.id, driveUrl: `https://drive.google.com/file/d/${seed.source.id}/view`, method: "google-drive", confidence: 1, createdAt: isoNow() }; quote.files.push(fileRecord); quote.suppliers.at(-1).sourceFileId = fileRecord.id; }
+        quote.files.unshift({ id: uid("arq"), role: "request", originalName: drivePilot.files[0].name, driveId: drivePilot.files[0].id, driveUrl: `https://drive.google.com/file/d/${drivePilot.files[0].id}/view`, method: "google-drive", confidence: 1, createdAt: isoNow() });
+        quote.status = "conferência"; await saveQuote(reconcile(quote)); return json(res, 200, { quote, files: drivePilot.files.filter(file => !/mapa de cotação/i.test(file.name)).map(file => ({ ...file, url: `https://drive.google.com/file/d/${file.id}/view` })), folderId: drivePilot.folderId });
+      }
       if (parts[3] === "generate" && req.method === "POST") {
         reconcile(quote);
         const blocking = quote.divergences.filter(row => row.severity === "blocking" && !row.resolved);
@@ -719,9 +1233,27 @@ const server = http.createServer(async (req, res) => {
         const filename = `mapa-cotacao-${cleanName(quote.request.category || "pedido")}-${cleanName(quote.request.number || quote.id)}-${Date.now()}.xlsx`;
         const targetPath = path.join(generatedDir, filename);
         const verification = await buildWorkbook(quote, targetPath);
-        quote.generated.push({ id: uid("mapa"), filename, createdAt: isoNow(), preview: path.basename(verification.previewPath), verified: !verification.errors.includes("#") });
+        let driveFile = null;
+        if (driveConfigured() && quote.request.driveFolderId) driveFile = await uploadFileToDrive(quote.request.driveFolderId, targetPath, `03 - Mapa de Cotação - ${quote.request.category || "Pedido"} ${quote.request.number || ""}.xlsx`);
+        quote.generated.push({ id: uid("mapa"), filename, createdAt: isoNow(), preview: verification.previewPath ? path.basename(verification.previewPath) : "", verified: !verification.errors.includes("#"), driveId: driveFile?.id || "", driveUrl: driveFile?.webViewLink || "" });
         quote.status = "mapa gerado"; await saveQuote(quote);
-        return json(res, 201, { quote, file: quote.generated.at(-1), downloadUrl: `/api/quotes/${quote.id}/files/${encodeURIComponent(filename)}`, previewUrl: `/api/quotes/${quote.id}/files/${encodeURIComponent(path.basename(verification.previewPath))}` });
+        return json(res, 201, { quote, file: quote.generated.at(-1), downloadUrl: driveFile?.webViewLink || `/api/quotes/${quote.id}/files/${encodeURIComponent(filename)}`, previewUrl: verification.previewPath ? `/api/quotes/${quote.id}/files/${encodeURIComponent(path.basename(verification.previewPath))}` : "" });
+      }
+      if (parts[3] === "purchase-order" && req.method === "POST") {
+        const supplier = quote.suppliers.find(row => row.id === quote.approval?.supplierId);
+        if (!supplier) return json(res, 400, { error: "Escolha e aprove um fornecedor antes de gerar a Ordem de Compra." });
+        const requestItems = quote.request.items || [];
+        const selectedItems = (supplier.items || []).map(item => ({ item, request: requestItems.find(row => row.id === item.requestItemId) })).filter(row => row.request && Number(row.item.unitPrice) > 0);
+        if (!selectedItems.length) return json(res, 400, { error: "O fornecedor aprovado não possui itens relacionados com valor." });
+        const itemsTotal = selectedItems.reduce((sum, { item, request }) => sum + Number(request.quantity || 0) * Number(item.unitPrice || 0), 0);
+        const finalTotal = itemsTotal + (supplier.freightIncluded ? 0 : Number(supplier.freight || 0)) + Number(supplier.otherCharges || 0) - Number(supplier.discount || 0);
+        const filename = `04-Ordem-de-Compra-${cleanName(quote.request.category || "pedido")}-${cleanName(quote.request.number || quote.id)}-${cleanName(supplier.name || "fornecedor")}-${Date.now()}.xlsx`;
+        const targetPath = path.join(generatedDir, filename);
+        const verification = await buildPurchaseOrderWorkbook(quote, supplier, targetPath);
+        let driveFile = null;
+        if (driveConfigured() && quote.request.driveFolderId) driveFile = await uploadFileToDrive(quote.request.driveFolderId, targetPath, `04 - Ordem de Compra - ${quote.request.category || "Pedido"} ${quote.request.number || ""} - ${supplier.name || "Fornecedor"}.xlsx`);
+        quote.purchaseOrders = quote.purchaseOrders || []; quote.purchaseOrders.push({ id: uid("oc"), filename, supplierId: supplier.id, createdAt: isoNow(), total: finalTotal, preview: verification.previewPath ? path.basename(verification.previewPath) : "", verified: !verification.errors.includes("#"), driveId: driveFile?.id || "", driveUrl: driveFile?.webViewLink || "" }); quote.status = "ordem de compra";
+        await saveQuote(quote); return json(res, 201, { quote, file: quote.purchaseOrders.at(-1), downloadUrl: driveFile?.webViewLink || `/api/quotes/${quote.id}/files/${encodeURIComponent(filename)}`, previewUrl: verification.previewPath ? `/api/quotes/${quote.id}/files/${encodeURIComponent(path.basename(verification.previewPath))}` : "" });
       }
       if (parts[3] === "files" && parts[4] && req.method === "GET") {
         const filename = path.basename(decodeURIComponent(parts.slice(4).join("/"))); const filePath = path.join(generatedDir, filename);
@@ -738,11 +1270,134 @@ const server = http.createServer(async (req, res) => {
     console.error(error);
     return json(res, 500, { error: error.message || "Erro interno." });
   }
-});
+}
 
-server.listen(port, "0.0.0.0", () => console.log(`Dashboard de obras: http://localhost:${port}/ (rede local habilitada)`));
+const driveFields = "nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,parents)";
+async function listDriveChildren(parentId) {
+  const rows = []; let pageToken = "";
+  do {
+    const query = new URLSearchParams({ q: `'${parentId}' in parents and trashed=false`, fields: driveFields, pageSize: "1000", supportsAllDrives: "true", includeItemsFromAllDrives: "true" });
+    if (pageToken) query.set("pageToken", pageToken);
+    const response = await driveFetch(`https://www.googleapis.com/drive/v3/files?${query}`); const payload = await response.json();
+    rows.push(...(payload.files || [])); pageToken = payload.nextPageToken || "";
+  } while (pageToken);
+  return rows;
+}
 
-process.on("SIGINT", async () => {
-  try { if (ocrWorkerPromise) (await ocrWorkerPromise).terminate(); } catch {}
-  server.close(() => process.exit(0));
-});
+async function listDriveTree(parentId, depth = 0, output = []) {
+  const children = await listDriveChildren(parentId);
+  for (const file of children) {
+    output.push(file);
+    if (file.mimeType === "application/vnd.google-apps.folder" && depth < 4) await listDriveTree(file.id, depth + 1, output);
+  }
+  return output;
+}
+
+function orderFolderScore(name, quote) {
+  const folder = norm(name); const number = String(quote.request.number || "").replace(/^0+/, ""); const category = norm(quote.request.category); const description = norm(`${quote.request.description || ""} ${quote.request.work || ""}`);
+  let score = 0;
+  if (number && new RegExp(`(?:^|\\D)0*${number}(?:\\D|$)`).test(folder)) score += 8;
+  if (category && folder.includes(category)) score += 6;
+  for (const token of description.split(" ").filter(token => token.length >= 5)) if (folder.includes(token)) score += 1;
+  if (/pedido|cotacao|or[cç]amento/.test(folder)) score += 2;
+  return score;
+}
+
+async function findOrderFolder(rootId, quote) {
+  const queue = [{ id: rootId, depth: 0 }]; const candidates = []; let inspected = 0;
+  while (queue.length && inspected < 700) {
+    const current = queue.shift(); const children = await listDriveChildren(current.id); inspected += children.length;
+    for (const child of children) if (child.mimeType === "application/vnd.google-apps.folder") {
+      const score = orderFolderScore(child.name, quote); if (score >= 8) candidates.push({ ...child, score, depth: current.depth + 1 });
+      if (current.depth < 5) queue.push({ id: child.id, depth: current.depth + 1 });
+    }
+  }
+  // Algumas pastas do Drive têm níveis extras ou atalhos e não aparecem na
+  // árvore limitada. Como segunda tentativa, procura todas as pastas visíveis
+  // e mantém apenas as que têm o número/categoria do pedido.
+  if (!candidates.length) {
+    const query = new URLSearchParams({
+      q: "mimeType='application/vnd.google-apps.folder' and trashed=false",
+      fields: driveFields,
+      pageSize: "1000",
+      supportsAllDrives: "true",
+      includeItemsFromAllDrives: "true"
+    });
+    const response = await driveFetch(`https://www.googleapis.com/drive/v3/files?${query}`);
+    const payload = await response.json();
+    for (const folder of payload.files || []) {
+      const score = orderFolderScore(folder.name, quote);
+      if (score >= 8) candidates.push({ ...folder, score, depth: 99 });
+    }
+  }
+  candidates.sort((a, b) => b.score - a.score || b.modifiedTime?.localeCompare(a.modifiedTime || "") || a.depth - b.depth);
+  return candidates[0] || null;
+}
+
+async function downloadDriveFile(file, targetDir) {
+  let extension = path.extname(file.name || ""); let url;
+  if (file.mimeType === "application/vnd.google-apps.spreadsheet") { url = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")}`; extension ||= ".xlsx"; }
+  else if (file.mimeType === "application/vnd.google-apps.document") { url = `https://www.googleapis.com/drive/v3/files/${file.id}/export?mimeType=${encodeURIComponent("application/pdf")}`; extension ||= ".pdf"; }
+  else url = `https://www.googleapis.com/drive/v3/files/${file.id}?alt=media`;
+  const response = await driveFetch(url); const buffer = Buffer.from(await response.arrayBuffer());
+  if (buffer.length > 30 * 1024 * 1024) throw new Error(`${file.name} é maior que 30 MB.`);
+  await fs.mkdir(targetDir, { recursive: true }); const targetPath = path.join(targetDir, `${file.id}-${cleanName(path.basename(file.name || "arquivo", path.extname(file.name || "")))}${extension}`);
+  await fs.writeFile(targetPath, buffer); return targetPath;
+}
+
+async function uploadFileToDrive(folderId, filePath, name, mimeType = contentType(filePath)) {
+  const boundary = `dash_${crypto.randomUUID()}`; const fileBuffer = await fs.readFile(filePath);
+  const multipart = Buffer.concat([Buffer.from(`--${boundary}\r\nContent-Type: application/json; charset=UTF-8\r\n\r\n${JSON.stringify({ name, parents: [folderId] })}\r\n`),Buffer.from(`--${boundary}\r\nContent-Type: ${mimeType}\r\n\r\n`),fileBuffer,Buffer.from(`\r\n--${boundary}--`)]);
+  const response = await driveFetch("https://www.googleapis.com/upload/drive/v3/files?uploadType=multipart&supportsAllDrives=true&fields=id,name,mimeType,webViewLink", { method: "POST", headers: { "Content-Type": `multipart/related; boundary=${boundary}` }, body: multipart });
+  return response.json();
+}
+
+function classifyDriveFile(file) {
+  const name = norm(file.name);
+  if (/^(03|3)\b/.test(name) || name.includes("mapa de cotacao")) return "map";
+  if (/^(04|4)\b/.test(name) || name.includes("ordem de compra")) return "purchase-order";
+  if (/^(01|1)\b/.test(name) || /pedido|solicitacao|requisicao|requisito|material solicitado|lista de materiais/.test(name)) return "request";
+  if (/^(02|2)\b/.test(name) || name.includes("orcamento") || name.includes("proposta")) return "quote";
+  return "unknown";
+}
+
+function supplierNameFromFile(name) {
+  return String(name || "").replace(/\.[^.]+$/, "").replace(/^\s*0?2\s*[-–—_]\s*/i, "").replace(/^or[çc]amento\s*[-–—_]\s*/i, "").split(/\s+[-–—]\s+/)[0]?.trim() || "Fornecedor";
+}
+
+async function importOrderFolderFromDrive(quote, folder) {
+  const files = await listDriveTree(folder.id); const supported = files.filter(file => !file.mimeType?.endsWith("folder") && ["request", "quote"].includes(classifyDriveFile(file)));
+  // O documento do pedido é a fonte de verdade; a descrição informada na
+  // tela serve apenas para localizar a pasta e nunca substitui o conteúdo
+  // extraído do arquivo encontrado nela.
+  if (!supported.length) throw new Error("A pasta foi encontrada, mas não contém pedido ou orçamento identificável.");
+  const mapTemplate = files.find(file => classifyDriveFile(file) === "map");
+  quote.request.driveFolderId = folder.id;
+  quote.request.mapTemplate = mapTemplate ? { driveId: mapTemplate.id, name: mapTemplate.name, mimeType: mapTemplate.mimeType, driveUrl: mapTemplate.webViewLink || `https://drive.google.com/file/d/${mapTemplate.id}/view` } : null;
+  quote.suppliers = []; quote.files = [];
+  const quoteDir = path.join(uploadDir, quote.id); await fs.mkdir(quoteDir, { recursive: true });
+  const ordered = supported.sort((a,b) => (classifyDriveFile(a) === "request" ? -1 : 1) - (classifyDriveFile(b) === "request" ? -1 : 1));
+  for (const file of ordered) {
+    const role = classifyDriveFile(file); let supplierId = "";
+    if (role === "quote") { const supplier = { id: uid("forn"), name: supplierNameFromFile(file.name), seller: "", items: [] }; quote.suppliers.push(supplier); supplierId = supplier.id; }
+    try {
+      const savedPath = await downloadDriveFile(file, quoteDir); const extraction = await extractDocument(savedPath, path.basename(savedPath));
+      const fileRecord = { id: uid("arq"), role, supplierId, originalName: file.name, savedName: path.basename(savedPath), driveId: file.id, driveUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`, method: extraction.method, confidence: extraction.confidence, createdAt: isoNow() };
+      await importIntoQuote(quote, role, supplierId, extraction, fileRecord);
+    } catch (error) {
+      quote.files.push({ id: uid("arq"), role, supplierId, originalName: file.name, driveId: file.id, driveUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`, method: "falha", confidence: 0, error: error.message, createdAt: isoNow() });
+    }
+  }
+  quote.status = "conferência"; await saveQuote(reconcile(quote));
+  return { quote, files: files.map(file => ({ ...file, role: classifyDriveFile(file), url: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view` })), folderId: folder.id, folderUrl: `https://drive.google.com/drive/folders/${folder.id}` };
+}
+
+let server;
+if (!isVercel) {
+  server = http.createServer(handleRequest);
+  server.listen(port, "0.0.0.0", () => console.log(`Dashboard de obras: http://localhost:${port}/ (rede local habilitada)`));
+  process.on("SIGINT", async () => {
+    try { if (ocrWorkerPromise) (await ocrWorkerPromise).terminate(); } catch {}
+    server.close(() => process.exit(0));
+  });
+}

@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="styles.css?v=1.1.6">
+    <link rel="stylesheet" href="styles.css?v=1.1.8">
 </head>
 <body>
   <div class="app-shell">
@@ -281,11 +281,12 @@
             <button class="text-button" id="quote-close-workspace">Fechar cotação</button>
           </div>
 
-          <nav class="quote-stepper" aria-label="Etapas do mapa de cotação">
+          <nav class="quote-stepper quote-stepper-five" aria-label="Etapas do processo de cotação">
             <button class="active" data-quote-step="1"><b>1</b><span>Pedido<small>Itens solicitados</small></span></button>
-            <button data-quote-step="2"><b>2</b><span>Orçamentos<small>Até 5 fornecedores</small></span></button>
-            <button data-quote-step="3"><b>3</b><span>Conferência<small>Preços e divergências</small></span></button>
-            <button data-quote-step="4"><b>4</b><span>Gerar mapa<small>Excel para o cliente</small></span></button>
+            <button data-quote-step="2"><b>2</b><span>Arquivos<small>Drive, PDF ou WhatsApp</small></span></button>
+            <button data-quote-step="3"><b>3</b><span>Mapa<small>Comparação item a item</small></span></button>
+            <button data-quote-step="4"><b>4</b><span>Escolha<small>Fornecedor aprovado</small></span></button>
+            <button data-quote-step="5"><b>5</b><span>Ordem de Compra<small>Documento final</small></span></button>
           </nav>
 
           <section class="quote-step active" data-step-panel="1">
@@ -322,7 +323,12 @@
           </section>
 
           <section class="quote-step" data-step-panel="2" hidden>
-            <div class="step-intro"><div><p class="eyebrow">PROPOSTAS RECEBIDAS</p><h2>Adicione os fornecedores</h2><p>Cada proposta pode ter um formato diferente. Os campos continuam editáveis após a leitura.</p></div><button class="button button-primary" id="supplier-add">＋ Adicionar fornecedor</button></div>
+            <div class="drive-import-card panel">
+              <div><span class="drive-badge">DRIVE</span><div><strong>Buscar arquivos do pedido</strong><p>Localiza o pedido e os orçamentos na pasta do cliente, sem depender de planilha-índice.</p></div></div>
+              <button class="button button-primary" id="quote-drive-search">Buscar na pasta do pedido</button>
+              <div class="import-feedback" id="quote-drive-feedback" hidden></div>
+            </div>
+            <div class="step-intro"><div><p class="eyebrow">ARQUIVOS E PROPOSTAS</p><h2>Orçamentos dos fornecedores</h2><p>Importe PDF/Excel/imagem ou cole a cotação recebida por texto ou WhatsApp.</p></div><button class="button button-primary" id="supplier-add">＋ Adicionar fornecedor</button></div>
             <div class="supplier-grid" id="supplier-grid"></div>
             <div class="step-actions"><button class="button button-secondary" data-next-step="1">← Voltar</button><button class="button button-primary" data-next-step="3">Conferir comparação →</button></div>
           </section>
@@ -335,25 +341,23 @@
               <div class="quote-table-wrap"><table class="comparison-table" id="comparison-table"></table></div>
             </article>
             <div class="unmatched-panel" id="unmatched-panel" hidden></div>
-            <div class="step-actions"><button class="button button-secondary" data-next-step="2">← Voltar</button><button class="button button-primary" data-next-step="4">Preparar mapa →</button></div>
+            <div class="map-generation-bar panel"><div><strong>Mapa de cotação em Excel</strong><span>Gere o arquivo após conferir as divergências.</span></div><div><div class="generate-warning" id="generate-warning" hidden></div><button class="button button-primary" id="generate-map">Gerar mapa de cotação</button><a class="button button-download" id="download-map" hidden>Baixar Excel</a></div></div>
+            <div class="step-actions"><button class="button button-secondary" data-next-step="2">← Voltar</button><button class="button button-primary" data-next-step="4">Escolher fornecedor →</button></div>
           </section>
 
           <section class="quote-step" data-step-panel="4" hidden>
-            <div class="generate-layout">
-              <article class="panel generate-card">
-                <span class="generate-icon">XLSX</span><p class="eyebrow">MAPA DE COTAÇÃO</p><h2>Pronto para gerar</h2><p id="generate-description">Revise o resumo antes de criar a planilha para o cliente.</p>
-                <div class="generate-summary" id="generate-summary"></div>
-                <div class="generate-warning" id="generate-warning" hidden></div>
-                <button class="button button-primary full-width" id="generate-map">Gerar mapa de cotação</button>
-                <a class="button button-download full-width" id="download-map" hidden>Baixar Excel gerado</a>
-              </article>
-              <article class="panel final-preview">
-                <div class="panel-header"><div><p class="eyebrow">RESUMO PARA O CLIENTE</p><h3>Totais por fornecedor</h3></div><span class="privacy-pill">Sem escolha automática</span></div>
-                <div id="final-supplier-summary" class="final-supplier-summary"></div>
-                <img id="generated-preview" alt="Prévia do mapa de cotação gerado" hidden>
-              </article>
+            <div class="step-intro"><div><p class="eyebrow">APROVAÇÃO</p><h2>Escolha o fornecedor</h2><p>A decisão é humana: registre quem foi aprovado e o motivo da escolha.</p></div><span class="privacy-pill">Sem escolha automática</span></div>
+            <div class="approval-grid" id="approval-supplier-grid"></div>
+            <article class="panel approval-note-card"><label class="field-label">Observação da aprovação<textarea class="quote-textarea" id="approval-notes" placeholder="Ex.: melhor prazo, condição negociada ou aprovação do responsável"></textarea></label><button class="button button-primary" id="save-approval">Registrar aprovação</button></article>
+            <div class="step-actions"><button class="button button-secondary" data-next-step="3">← Voltar</button><button class="button button-primary" data-next-step="5">Preparar Ordem de Compra →</button></div>
+          </section>
+
+          <section class="quote-step" data-step-panel="5" hidden>
+            <div class="purchase-layout">
+              <article class="panel purchase-card"><span class="generate-icon">O.C.</span><p class="eyebrow">ORDEM DE COMPRA</p><h2 id="purchase-title">Aguardando fornecedor</h2><p id="purchase-description">Escolha e aprove um fornecedor na etapa anterior.</p><div class="generate-summary" id="purchase-summary"></div><button class="button button-primary full-width" id="generate-purchase-order">Gerar Ordem de Compra</button><a class="button button-download full-width" id="download-purchase-order" hidden>Baixar Ordem de Compra</a><a class="button button-secondary full-width" id="download-map-final" hidden>Baixar mapa em Excel</a><a class="button button-secondary full-width" id="open-google-sheets" href="https://docs.google.com/spreadsheets/" target="_blank" rel="noopener" hidden>Abrir Google Planilhas para importar</a></article>
+              <article class="panel final-preview"><div class="panel-header"><div><p class="eyebrow">RESUMO DA COMPRA</p><h3>Itens com valor no fornecedor escolhido</h3></div><span class="privacy-pill">Pronto para conferência</span></div><div id="purchase-items" class="purchase-items"></div></article>
             </div>
-            <div class="step-actions"><button class="button button-secondary" data-next-step="3">← Voltar</button><span></span></div>
+            <div class="step-actions"><button class="button button-secondary" data-next-step="4">← Voltar</button><span></span></div>
           </section>
         </div>
       </section>
@@ -406,9 +410,9 @@
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
   <script src="web-demo.js?v=1.1.6"></script>
-  <script src="data.js?v=1.1.6"></script>
-  <script src="quotes.js?v=1.1.6"></script>
+  <script src="data.js?v=1.1.8"></script>
+  <script src="quotes.js?v=1.1.10"></script>
   <script src="works.js?v=1.1.6"></script>
-  <script src="app.js?v=1.1.6"></script>
+  <script src="app.js?v=1.1.8"></script>
 </body>
 </html>
