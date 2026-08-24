@@ -182,7 +182,7 @@
   }
   async function searchDrive(){
     const button=$("#quote-drive-search"),feedback=$("#quote-drive-feedback");setBusy(button,true,"Buscando no Drive...");
-    try{const result=await api(`/api/quotes/${qstate.quote.id}/drive-search`,{method:"POST"});qstate.quote=result.quote;render();showFeedback(feedback,`${result.files?.length||0} arquivo(s) encontrado(s) e processado(s).`);qstate.toast("Arquivos do pedido carregados")}
+    try{const result=await api(`/api/quotes/${qstate.quote.id}/drive-search`,{method:"POST"});qstate.quote=result.quote;render();const proposals=(qstate.quote.files||[]).filter(file=>file.role==="quote"),parsed=proposals.reduce((sum,file)=>sum+toNumber(file.parsedItems),0),failed=proposals.filter(file=>file.error||!toNumber(file.parsedItems));showFeedback(feedback,`${result.files?.length||0} arquivo(s) encontrado(s) • ${parsed} item(ns) interpretado(s)${failed.length?` • ${failed.length} orçamento(s) precisam de revisão`:""}`,failed.length?"error":"success");qstate.toast(parsed?"Orçamentos interpretados e relacionados":"Arquivos encontrados, mas sem itens interpretados")}
     catch(error){showFeedback(feedback,error.message,"error");qstate.toast(error.message)}finally{setBusy(button,false)}
   }
   async function saveApproval(){

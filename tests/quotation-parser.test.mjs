@@ -2,7 +2,27 @@ import test from "node:test";
 import assert from "node:assert/strict";
 
 process.env.VERCEL = "1";
-const { parseSupplier } = await import("../server.mjs");
+const { parseRequest, parseSupplier, reconcile } = await import("../server.mjs");
+
+test("separa corretamente item 9 quantidade 12 no pedido compactado", () => {
+  const text = `N°: 05
+11,0UNMICTORIO SANITARIO22/08/2026
+23,0UNBACIA SANITARIA22/08/2026
+32,0UNCUBA OVAL22/08/2026
+48,0UNENGATE FLEXIVEL22/08/2026
+51,0UNCANO CHUVEIRO22/08/2026
+61,0UNCHUVEIRO 220V22/08/2026
+78,0UNACABAMENTO REGISTRO22/08/2026
+82,0UNTORNEIRA LAVATORIO22/08/2026
+912,0UNSIFAO UNIVERSAL22/08/2026
+103,0UNANEL VEDACAO22/08/2026`;
+  const request = parseRequest({ text, tables: [], method: "pdf-texto-node", confidence: 0.9 });
+  assert.equal(request.items.length, 10);
+  assert.equal(request.items[8].number, 9);
+  assert.equal(request.items[8].quantity, 12);
+  assert.equal(request.items[9].number, 10);
+  assert.equal(request.items[9].quantity, 3);
+});
 
 test("interpreta as 17 linhas compactadas do orçamento Nichele", () => {
   const text = `01. NICHELE FILIAL - MATRIZ
@@ -100,4 +120,39 @@ SAC BALAROTI`;
   assert.equal(supplier.items[4].quotedTotal, 2879.70);
   assert.equal(supplier.freight, 86.44);
   assert.equal(supplier.officialTotal, 6597.14);
+});
+
+test("relaciona cada linha a um único tipo de produto", () => {
+  const requestItems = [
+    { id: "req-mictorio", number: 1, quantity: 1, unit: "UN", description: "MICTORIO SANITARIO BRANCO GELO DECA" },
+    { id: "req-cuba", number: 2, quantity: 2, unit: "UN", description: "CUBA DE EMBUTIR OVAL BRANCA 49CMX36,5CM" },
+    { id: "req-chuveiro", number: 3, quantity: 1, unit: "UN", description: "CHUVEIRO 220 V FAME" },
+    { id: "req-spud", number: 4, quantity: 1, unit: "UN", description: "SPUD PARA MICTORIO DECA" },
+    { id: "req-valvula", number: 5, quantity: 2, unit: "UN", description: "VALVULA DECA PARA ESCOAMENTO LAVATORIO" },
+    { id: "req-fita", number: 6, quantity: 2, unit: "UN", description: "FITA VEDA ROSCA 18MMX25M" }
+  ];
+  const item = (id, description, quantity, unitPrice) => ({ id, description, quantity, unit: "PC", unitPrice, quotedTotal: quantity * unitPrice, requestItemId: "", confidence: 0 });
+  const quote = {
+    request: { items: requestItems },
+    suppliers: [{ id: "forn", name: "Teste", items: [
+      item("cuba", "CUBA EMB OVAL UNIV 49X36.5CM GELO", 2, 133.8),
+      item("ducha", "DUCHA BELLA DUCHA 6800W 220V", 1, 113.3),
+      item("espude", "ESPUDE BACIA SANIT", 1, 9.23),
+      item("valvula-extra", "VALVULA MICTORIO 1/2 PRESSMATIC", 1, 796.9),
+      item("mictorio", "MICTORIO COM SIFAO INTEGRADO BRANCO GELO", 1, 815.9),
+      item("valvula", "VALV ESCOAM 1602 CR", 2, 61.65),
+      item("fita", "VEDA ROSCA 18X25M", 2, 11.49)
+    ] }],
+    divergences: []
+  };
+  reconcile(quote);
+  const mapped = Object.fromEntries(quote.suppliers[0].items.map(row => [row.id, row.requestItemId]));
+  assert.equal(mapped.cuba, "req-cuba");
+  assert.equal(mapped.ducha, "req-chuveiro");
+  assert.equal(mapped.espude, "req-spud");
+  assert.equal(mapped.mictorio, "req-mictorio");
+  assert.equal(mapped.valvula, "req-valvula");
+  assert.equal(mapped.fita, "req-fita");
+  assert.equal(mapped["valvula-extra"], "");
+  assert.equal(new Set(Object.values(mapped).filter(Boolean)).size, 6);
 });

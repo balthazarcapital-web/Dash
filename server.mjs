@@ -488,11 +488,17 @@ function textRequestItems(text) {
 
 function compactTextRequestItems(text) {
   const items = [];
-  const pattern = /^(\d{1,2})(\d+(?:[.,]\d+))\s*(UN|BR|PC|PÇ|PCA|CX|KG|G|M|M2|M3|L|LT|RL|PAR)\s*([\s\S]*?)(\d{2}\/\d{2}\/\d{4})\s*$/gmi;
-  for (const match of String(text).matchAll(pattern)) {
-    const description = match[4].replace(/\s+/g, " ").trim();
+  const source = String(text);
+  let cursor = 0;
+  for (let expected = 1; expected <= 250; expected++) {
+    const pattern = new RegExp(`^${expected}(\\d+(?:[.,]\\d+))\\s*(UN|BR|PC|PÇ|PCA|CX|KG|G|M|M2|M3|L|LT|RL|PAR)\\s*([\\s\\S]*?)(\\d{2}\\/\\d{2}\\/\\d{4})\\s*$`, "gmi");
+    pattern.lastIndex = cursor;
+    const match = pattern.exec(source);
+    if (!match) break;
+    const description = match[3].replace(/\s+/g, " ").trim();
+    cursor = pattern.lastIndex;
     if (!description || /itemquantidade|descricao dos materiais/i.test(description)) continue;
-    items.push({ id: uid("item"), number: match[1], quantity: parseNumber(match[2]), unit: match[3].toUpperCase(), description, neededDate: match[5] });
+    items.push({ id: uid("item"), number: expected, quantity: parseNumber(match[1]), unit: match[2].toUpperCase(), description, neededDate: match[4] });
   }
   return items;
 }
@@ -723,6 +729,34 @@ function parseSupplier(extraction, current = {}) {
 
 function canonicalMatchText(value) {
   return norm(value)
+    .replace(/(\d+(?:[.,]\d+)?)\s*(?:mm|cm|m)?\s*x\s*(\d+(?:[.,]\d+)?)\s*(mm|cm|m)?/g, "$1x$2$3")
+    .replace(/(\d+)\s*(v|w)\b/g, "$1$2")
+    .replace(/\bengante\b|\beng\b/g, "engate")
+    .replace(/\bflex\b/g, "flexivel")
+    .replace(/\bemb\b/g, "embutir")
+    .replace(/\buniv\b/g, "universal")
+    .replace(/\bbraco\b/g, "cano")
+    .replace(/\bducha\b/g, "chuveiro")
+    .replace(/\bchuv\b/g, "chuveiro")
+    .replace(/\bacab\b/g, "acabamento")
+    .replace(/\breg\b/g, "registro")
+    .replace(/\btorn\b/g, "torneira")
+    .replace(/\blavat\b/g, "lavatorio")
+    .replace(/\bsanf\b/g, "sanfonado")
+    .replace(/\bajust\b/g, "ajustavel")
+    .replace(/\bespude\b/g, "spud")
+    .replace(/\btb\b/g, "tubo")
+    .replace(/\blig\b/g, "ligacao")
+    .replace(/\bvalv\b/g, "valvula")
+    .replace(/\bescoam\b/g, "escoamento")
+    .replace(/\bplast\b/g, "plastico")
+    .replace(/\bparaf\b/g, "parafuso")
+    .replace(/\bbuc\b/g, "bucha")
+    .replace(/\bwc\b/g, "vaso sanitario")
+    .replace(/\bsold\b/g, "soldavel")
+    .replace(/\bveda rosca\b/g, "fita veda rosca")
+    .replace(/\bbco\b|\bbr\b/g, "branco")
+    .replace(/\bcr\b/g, "cromado")
     .replace(/\bfio\b/g, "cabo")
     .replace(/\bferro\b/g, "aco")
     .replace(/\bcimento\s+portland\b/g, "cimento")
@@ -745,6 +779,11 @@ function canonicalMatchText(value) {
     .replace(/\s+/g, " ").trim();
 }
 function tokens(value) { return new Set(canonicalMatchText(value).split(" ").filter(token => token.length > 1 && !["de", "da", "do", "para", "com", "sem", "un", "pc", "peca", "uso", "geral"].includes(token))); }
+function primaryProductKind(value) {
+  const canonical = canonicalMatchText(value);
+  const kinds = ["engate", "cano", "chuveiro", "mictorio", "bacia", "cuba", "registro", "torneira", "sifao", "anel", "spud", "tubo", "assento", "valvula", "parafuso", "fita"];
+  return kinds.map(kind => ({ kind, index: canonical.search(new RegExp(`\\b${kind}\\b`)) })).filter(row => row.index >= 0).sort((a, b) => a.index - b.index)[0]?.kind || "";
+}
 function similarity(a, b) {
   const ta = tokens(a), tb = tokens(b); if (!ta.size || !tb.size) return 0;
   const intersection = [...ta].filter(token => tb.has(token)).length;
@@ -752,8 +791,13 @@ function similarity(a, b) {
   const specsA = canonicalMatchText(a).match(/\d+(?:[.,]\d+)?\s*(?:mm|cm|m|kg|v|w)|\d+(?:[.,]\d+)?x\d+(?:[.,]\d+)?/g) || [];
   const specsB = canonicalMatchText(b).match(/\d+(?:[.,]\d+)?\s*(?:mm|cm|m|kg|v|w)|\d+(?:[.,]\d+)?x\d+(?:[.,]\d+)?/g) || [];
   const sharedSpecs = specsA.filter(spec => specsB.includes(spec)).length;
-  const specScore = specsA.length && specsB.length ? sharedSpecs / Math.min(specsA.length, specsB.length) : 1;
-  return Math.min(1, intersection / union * 0.6 + specScore * 0.4);
+  const lexicalScore = intersection / union;
+  let score = lexicalScore;
+  if (specsA.length && specsB.length) score = sharedSpecs ? lexicalScore * 0.7 + sharedSpecs / Math.min(specsA.length, specsB.length) * 0.3 : Math.min(0.18, lexicalScore * 0.35);
+  const kindA = primaryProductKind(a), kindB = primaryProductKind(b);
+  if (kindA && kindB && kindA !== kindB) return Math.min(0.18, score * 0.3);
+  if (kindA && kindA === kindB) score += 0.12;
+  return Math.min(1, score);
 }
 
 function reconcile(quote) {
@@ -772,9 +816,10 @@ function reconcile(quote) {
       const lockedRequest = item.lockedMatch && item.requestItemId ? requestItems.find(row => row.id === item.requestItemId) : null;
       if (lockedRequest) best = { score: 1, item: lockedRequest };
       for (const requestItem of lockedRequest ? [] : requestItems) {
+        if (matched.has(requestItem.id)) continue;
         let score = similarity(item.description, requestItem.description);
         if (item.quantity && requestItem.quantity && Math.abs(item.quantity - requestItem.quantity) < 0.0001) score += 0.12;
-        const comparableUnit = unit => norm(unit).replace(/^(?:me|mt|ml|m)$/, "m").replace(/^pc$/, "pc");
+        const comparableUnit = unit => norm(unit).replace(/^(?:me|mt|ml|m)$/, "m").replace(/^(?:pc|un|und|pca)$/, "un");
         if (item.unit && requestItem.unit && comparableUnit(item.unit) === comparableUnit(requestItem.unit)) score += 0.08;
         score = Math.min(1, score);
         if (score > best.score) best = { score, item: requestItem };
@@ -1294,6 +1339,8 @@ export async function handleRequest(req, res) {
         const blocking = quote.divergences.filter(row => row.severity === "blocking" && !row.resolved);
         if (!quote.request.items?.length) return json(res, 400, { error: "O pedido ainda não possui itens." });
         if (!quote.suppliers?.length) return json(res, 400, { error: "Adicione ao menos um fornecedor." });
+        const mappedPrices = quote.suppliers.flatMap(supplier => supplier.items || []).filter(item => item.requestItemId && Number(item.unitPrice) > 0);
+        if (!mappedPrices.length) return json(res, 409, { error: "Nenhum item de fornecedor foi interpretado e relacionado. Releia os arquivos antes de gerar o mapa." });
         if (blocking.length) return json(res, 409, { error: `Resolva ${blocking.length} divergência(s) antes de gerar o mapa.`, divergences: blocking });
         const filename = `mapa-cotacao-${cleanName(quote.request.category || "pedido")}-${cleanName(quote.request.number || quote.id)}-${Date.now()}.xlsx`;
         const targetPath = path.join(generatedDir, filename);
@@ -1337,7 +1384,7 @@ export async function handleRequest(req, res) {
   }
 }
 
-export { parseSupplier, textQuoteItems };
+export { parseRequest, parseSupplier, reconcile, textQuoteItems };
 
 const driveFields = "nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,parents)";
 async function listDriveChildren(parentId) {
