@@ -557,7 +557,7 @@ function textQuoteItems(text) {
     if (/\bCIMENTO\b/.test(upper)) return "SC";
     return "UN";
   };
-  const addItem = (description, quantity, unit, unitPrice, quotedTotal, confidence = 0) => {
+  const addItem = (description, quantity, unit, unitPrice, quotedTotal, confidence = 0, brand = "") => {
     const cleanDescription = String(description)
       .replace(/^\s*(?:\d+\s+){1,3}(?=[A-ZÁÉÍÓÚÇ])/i, "")
       .replace(/[—–]+/g, " ").replace(/\s+/g, " ").trim();
@@ -569,8 +569,59 @@ function textQuoteItems(text) {
     const resolvedTotal = totalValue || Number((resolvedUnitPrice * qty).toFixed(2));
     const key = `${norm(cleanDescription)}|${qty}|${resolvedUnitPrice.toFixed(2)}|${resolvedTotal.toFixed(2)}`;
     if (items.some(item => item._key === key)) return;
-    items.push({ id: uid("qitem"), description: cleanDescription, quantity: qty, unit: resolvedUnit, unitPrice: resolvedUnitPrice, quotedTotal: resolvedTotal, requestItemId: "", confidence, _key: key });
+    items.push({ id: uid("qitem"), description: cleanDescription, quantity: qty, unit: resolvedUnit, unitPrice: resolvedUnitPrice, quotedTotal: resolvedTotal, brand, requestItemId: "", confidence, _key: key });
   };
+
+  const splitTrailingBrand = value => {
+    const clean = String(value || "").replace(/\s+/g, " ").trim();
+    const match = clean.match(/(LORENZET(?:TI)?(?:\s+ELETRO)?|IMPERATRIZ|ENERBRAS|TIGRE|DECA|DOCOL|AMANCO|ASTRA|BLUKIT|ZAGONEL|FAME|REAL)(?:\s+[LM])?$/i);
+    return match ? { description: clean.slice(0, match.index).trim(), brand: match[1].trim() } : { description: clean, brand: "" };
+  };
+
+  // O PDF da Nichele perde os espaços entre as colunas ao ser convertido em
+  // texto. A sequência final permanece estável: unidade, quantidade, peso,
+  // valor unitário e valor total. O número sequencial da linha evita confundir
+  // o item 1 com o começo do código 112.796.
+  if (/NICHELE\s+FILIAL|nichele\.com\.br/i.test(text)) {
+    let expectedItem = 1;
+    for (const line of lines) {
+      if (!line.startsWith(String(expectedItem))) continue;
+      const remainder = line.slice(String(expectedItem).length);
+      const match = remainder.match(/^(\d{1,3}(?:\.\d{3})*)(.*?)(PC|UN|BR|PR|KT|TB|SC|CX)(\d+,\d{3})(\d+,\d{3})(\d{1,3}(?:\.\d{3})*,\d{2})(\d{1,3}(?:\.\d{3})*,\d{2})$/i);
+      if (!match) continue;
+      const product = splitTrailingBrand(match[2]);
+      addItem(product.description, match[4], match[3].toUpperCase(), match[6], match[7], 0.97, product.brand);
+      expectedItem += 1;
+    }
+    if (items.length) return items.map(({ _key, ...item }) => item);
+  }
+
+  // No PDF do Balaroti os valores podem ficar na linha anterior à descrição.
+  // Este leitor une as linhas até o marcador de desconto 0,00 e preserva os
+  // valores unitário/total que aparecem imediatamente após a unidade.
+  if (/BALAROTI|SAC BALAROTI/i.test(text)) {
+    const headerPattern = /^(.*?)(\d+(?:[.,]\d+)?)\s+(PC|UN|TB|KT|BR|PR|SC|CX)\s*(\d{1,3}(?:\.\d{3})*,\d{2})(\d{1,3}(?:\.\d{3})*,\d{2})(.*)$/i;
+    for (let index = 0; index < lines.length; index++) {
+      const match = lines[index].match(headerPattern);
+      if (!match) continue;
+      const product = splitTrailingBrand(match[1]);
+      const descriptionParts = [];
+      let tail = String(match[6] || "").trim();
+      let ended = /0,00\s*$/.test(tail);
+      if (tail) descriptionParts.push(tail);
+      while (!ended && index + 1 < lines.length && descriptionParts.length < 5) {
+        const next = lines[index + 1];
+        if (headerPattern.test(next) || /^(?:Hora Emiss[aã]o|Data Emiss[aã]o|P[aá]gina:|Loja:|Pedido:|Cliente:)/i.test(next)) break;
+        index += 1;
+        if (/^0,00$/.test(next)) { ended = true; break; }
+        descriptionParts.push(next);
+        ended = /0,00\s*$/.test(next);
+      }
+      const description = descriptionParts.join(" ").replace(/^\d+\s*-\s*/, "").replace(/0,00\s*$/, "").trim();
+      if (description) addItem(description, match[2], match[3].toUpperCase(), match[4], match[5], 0.97, product.brand);
+    }
+    if (items.length) return items.map(({ _key, ...item }) => item);
+  }
 
   // Sistemas de materiais de construção normalmente exportam NCM, unidade,
   // quantidade, desconto, valor unitário e total na mesma linha.
@@ -653,14 +704,17 @@ function parseSupplier(extraction, current = {}) {
   if (!delivery && /entrega\s+imediato[\s\S]{0,160}?1\s+dia\s+[uú]til/i.test(text)) delivery = "Imediato ou até 1 dia útil após o pagamento";
   let validity = text.match(/VALIDADE(?:\s+(?:DESTE|DO)\s+OR[CÇ]AMENTO)?\s*:?\s*([^\n]+)/i)?.[1]?.trim() || text.match(/V[AÁ]LIDO\s+AT[EÉ]\s*:?\s*([^\n]+)/i)?.[1]?.trim() || current.validity || "";
   if (/eletrorastro/i.test(text)) validity = text.match(/Validade\s*:\s*\d+\s+Dias?\s*\((\d{2}\/\d{2}\/\d{4})\)/i)?.[1] || validity;
-  const otherCharges = money(text.match(/(?:OUTRAS|OUTRAS\s+DESPESAS|ACR[EÉ]SCIMOS)\s*:?\s*(?:R\$\s*)?([\d.]+,\d{2})/i)?.[1]);
-  const officialTotalMatch = text.match(/(?:TOTAL\s+(?:DA\s+PROPOSTA|DO\s+OR[CÇ]AMENTO|GERAL|L[IÍ]QUIDO)|VALOR\s+TOTAL)\s*:?\s*(?:R\$|A\$)?\s*([\d.]+,\d{2})/i);
-  const officialTotal = money(officialTotalMatch?.[1]) || Number(current.officialTotal || 0);
+  const balarotiSummary = text.match(/Frete:\s*Total\s+do\s+Or[çc]amento:\s*R\$\s*([\d.]+,\d{2})\s*R\$\s*([\d.]+,\d{2})/i);
+  const nicheleCharges = text.match(/Valor\s+TC\s+Out\.\s*desp\.\s*man\s*([\d.]+,\d{2})\s+([\d.]+,\d{2})/i);
+  const parsedFreight = balarotiSummary ? money(balarotiSummary[1]) : (freightIncluded ? 0 : money(freightMatch?.[1]));
+  const otherCharges = nicheleCharges ? money(nicheleCharges[2]) : money(text.match(/(?:OUTRAS|OUTRAS\s+DESPESAS|ACR[EÉ]SCIMOS)\s*:?\s*(?:R\$\s*)?([\d.]+,\d{2})/i)?.[1]);
+  const officialTotalMatch = text.match(/TOTAL\s+GERAL\s*:?\s*(?:R\$|A\$)?\s*([\d.]+,\d{2})/i) || text.match(/(?:TOTAL\s+(?:DA\s+PROPOSTA|DO\s+OR[CÇ]AMENTO|L[IÍ]QUIDO)|VALOR\s+TOTAL)\s*:?\s*(?:R\$|A\$)?\s*([\d.]+,\d{2})/i);
+  const officialTotal = balarotiSummary ? money(balarotiSummary[2]) : (money(officialTotalMatch?.[1]) || Number(current.officialTotal || 0));
   const discounts = [...text.matchAll(/(?:DESCONTO(?:\s+(?:PIX|D[EÉ]BITO|A VISTA))?|PIX|D[EÉ]BITO|A VISTA)\s*(\d+(?:[.,]\d+)?)\s*%[^\n]*(?:R\$\s*)?([\d.]+,\d{2})?/gi)].map(match => ({ label: match[0].trim(), percent: parseNumber(match[1]), amount: match[2] ? money(match[2]) : 0 }));
   return {
     ...current,
     name: current.name || firstMeaningfulLine(text), seller,
-    payment, delivery, validity, freight: freightIncluded ? 0 : money(freightMatch?.[1]), freightIncluded, otherCharges, officialTotal,
+    payment, delivery, validity, freight: parsedFreight, freightIncluded, otherCharges, officialTotal,
     discount: current.discount || 0, discounts, notes: current.notes || "", rawText: text,
     extractionMethod: extraction.method, extractionConfidence: extraction.confidence,
     items: items.length ? items : textQuoteItems(text)
@@ -1090,6 +1144,8 @@ async function importIntoQuote(quote, role, supplierId, extraction, fileRecord) 
     let supplier = quote.suppliers.find(row => row.id === supplierId);
     if (!supplier) { supplier = { id: supplierId || uid("forn"), name: "", seller: "", items: [] }; quote.suppliers.push(supplier); }
     Object.assign(supplier, parseSupplier(extraction, supplier));
+    if (fileRecord) { fileRecord.textLength = String(extraction.text || "").length; fileRecord.parsedItems = supplier.items?.length || 0; }
+    console.log("[quotation-parser]", { file: fileRecord?.originalName || "texto-colado", method: extraction.method, textLength: String(extraction.text || "").length, parsedItems: supplier.items?.length || 0, officialTotal: supplier.officialTotal || 0 });
     if (fileRecord) supplier.sourceFileId = fileRecord.id;
   }
   if (fileRecord) quote.files.push(fileRecord);
@@ -1280,6 +1336,8 @@ export async function handleRequest(req, res) {
     return json(res, 500, { error: error.message || "Erro interno." });
   }
 }
+
+export { parseSupplier, textQuoteItems };
 
 const driveFields = "nextPageToken,files(id,name,mimeType,size,modifiedTime,webViewLink,parents)";
 async function listDriveChildren(parentId) {
