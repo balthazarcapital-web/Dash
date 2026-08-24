@@ -14,11 +14,6 @@
 
   document.documentElement.classList.add("web-demo");
   document.addEventListener("DOMContentLoaded", () => {
-    document.querySelectorAll('[data-section="quotes"]').forEach(link => {
-      link.hidden = true;
-      link.setAttribute("aria-hidden", "true");
-    });
-
     document.querySelectorAll("[data-dash-version]").forEach(node => {
       node.textContent = `v${version}`;
     });
