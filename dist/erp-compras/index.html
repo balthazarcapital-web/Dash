@@ -1,0 +1,35 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="robots" content="noindex,nofollow">
+  <title>ABSOLUTTA ERP • Compras</title>
+  <style>
+    html,body{margin:0;width:100%;height:100%;overflow:hidden;background:#f3f5f8}
+    iframe{display:block;width:100%;height:100%;border:0;background:#f3f5f8}
+  </style>
+</head>
+<body>
+  <iframe id="erp" src="../index.html#overview" title="ABSOLUTTA ERP • Compras"></iframe>
+  <script>
+    const frame=document.getElementById('erp');
+    function simplify(){
+      try{
+        const doc=frame.contentDocument;
+        const win=frame.contentWindow;
+        if(!doc||!win)return;
+        const style=doc.createElement('style');
+        style.textContent='a[data-section="work"],#work{display:none!important}';
+        doc.head.appendChild(style);
+        const brandSmall=doc.querySelector('.brand small');
+        if(brandSmall)brandSmall.textContent='Gestão de compras';
+        const heading=doc.querySelector('.page-heading p');
+        if(heading&&heading.firstChild)heading.firstChild.textContent='CLIENTE ';
+        if(win.location.hash==='#work')win.location.hash='#overview';
+      }catch(e){console.warn('Ajuste visual indisponível',e)}
+    }
+    frame.addEventListener('load',()=>{simplify();setTimeout(simplify,300);setTimeout(simplify,1200)});
+  </script>
+</body>
+</html>
