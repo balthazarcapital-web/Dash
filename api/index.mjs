@@ -1,8 +1,12 @@
 const bases={deterlimp:["13Kmg41VDV8KUijPucj2TxCFdElFD6Vfb1WY4WwB7msU","1856239408"],carlos_bezerra:["1PE6KUaEEshp2Kk1d9eExIFp53DzNTJST7mJc4pMZEuw","1856239408"],clinica_gianna:["1_LTDwN25pSKXfofahLgFiRGndb79cWNHxi8iR3v_VHM","1856239408"],dr_clovis_cmfs:["1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU","1856239408"]};
 const json=(statusCode,body)=>new Response(JSON.stringify(body),{status:statusCode,headers:{"content-type":"application/json","cache-control":"no-store"}});
 export default async function handler(event,res){
+  if(res&&event&&typeof event.method==="string"){
+    const out=await handler({httpMethod:event.method,rawUrl:`https://${event.headers?.host||"vercel.local"}${event.url||"/"}`,headers:event.headers||{}},null);
+    res.writeHead(out.status,Object.fromEntries(out.headers.entries()));res.end(await out.text());return;
+  }
   if(event&&((typeof event.httpMethod==="string")||typeof event.method==="string")){
-    const modern=typeof event.method==="string";
+    const modern=!res&&typeof event.method==="string";
     const url=new URL(modern?event.url:(event.rawUrl||event.path||"/"),"https://netlify.local");
     const connected=Boolean(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET&&process.env.GOOGLE_REFRESH_TOKEN);
     if(url.pathname==="/api/health") { const payload={ok:true,runtime:"netlify",driveConnected:connected}; return modern?new Response(JSON.stringify(payload),{status:200,headers:{"content-type":"application/json"}}):json(200,payload); }
