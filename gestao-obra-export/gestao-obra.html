@@ -1,0 +1,114 @@
+      <section class="content work-view" id="work" hidden>
+        <header class="work-hero">
+          <div><p class="eyebrow">GESTÃO DA EXECUÇÃO</p><h2 id="work-title">Informações da obra</h2><p>Acompanhe avanço físico, documentos, responsáveis e próximas ações.</p></div>
+          <div class="work-save"><span class="work-status" id="work-status">Planejamento</span><small id="work-save-status">Carregando...</small></div>
+        </header>
+
+        <nav class="work-tabs" aria-label="Áreas da gestão da obra">
+          <button class="active" data-work-tab="overview">Visão da obra</button>
+          <button data-work-tab="budget">Orçamento <b id="work-budget-tab-count">0%</b></button>
+          <button data-work-tab="documents">Documentos <b id="work-doc-tab-count">0</b></button>
+          <button data-work-tab="journal">Diário de obra <b id="work-journal-count">0</b></button>
+        </nav>
+
+        <div data-work-tab-panel="overview">
+        <section class="work-kpis" aria-label="Resumo executivo da obra">
+          <article class="work-progress-card"><div class="work-progress-ring" id="work-progress-ring"><strong id="work-progress">0%</strong></div><div><span>PROGRESSO GERAL</span><strong id="work-current-stage">Ainda não iniciado</strong><small id="work-progress-note">Atualizado pelos custos realizados</small></div></article>
+          <article class="work-kpi"><span>Prazo planejado</span><strong id="work-deadline">Não definido</strong><small id="work-date-range">Cadastre as datas da obra</small></article>
+          <article class="work-kpi"><span>Documentos</span><strong id="work-doc-kpi">0 pendentes</strong><small id="work-doc-detail">Checklist em dia</small></article>
+          <article class="work-kpi"><span>Próximas ações</span><strong id="work-task-kpi">0 abertas</strong><small id="work-task-detail">Nenhuma ação atrasada</small></article>
+        </section>
+
+        <section class="work-alert" id="work-alert" hidden></section>
+
+        <article class="panel work-plan-card">
+          <div class="panel-header"><div><p class="eyebrow">PLANEJADO × REALIZADO</p><h3>Ritmo atual da obra</h3></div><span class="work-deviation" id="work-deviation">No prazo</span></div>
+          <div class="work-plan-bars"><div><span>Planejado até hoje <b id="work-planned-value">0%</b></span><i><em id="work-planned-bar"></em></i></div><div><span>Executado <b id="work-actual-value">0%</b></span><i><em id="work-actual-bar"></em></i></div></div>
+          <small id="work-plan-note">Cadastre as datas das etapas para comparar o avanço.</small>
+        </article>
+
+        <article class="panel work-budget-overview" id="work-budget-overview" hidden>
+          <div class="panel-header"><div><p class="eyebrow">CONTROLE FINANCEIRO</p><h3>Orçado × realizado</h3></div><button class="text-button" data-open-budget>Ver orçamento detalhado →</button></div>
+          <div class="budget-overview-grid" id="budget-overview-grid"></div>
+        </article>
+
+        <div class="work-main-grid">
+          <article class="panel work-details-panel">
+            <div class="panel-header"><div><p class="eyebrow">IDENTIFICAÇÃO</p><h3>Dados gerais</h3></div><button class="text-button" id="work-details-toggle">Editar</button></div>
+            <div class="work-details-summary" id="work-details-summary"></div>
+            <div class="work-details-form" id="work-details-form" hidden>
+              <div class="form-grid">
+                <label class="field-label">Nome da obra<input data-work-detail="name"></label>
+                <label class="field-label">Cliente<input data-work-detail="client"></label>
+                <label class="field-label span-2">Endereço<input data-work-detail="address"></label>
+                <label class="field-label">Tipo de obra<input data-work-detail="type"></label>
+                <label class="field-label">Situação<select data-work-detail="status"><option>Planejamento</option><option>Em andamento</option><option>Pausada</option><option>Concluída</option></select></label>
+                <label class="field-label">Engenheiro responsável<input data-work-detail="engineer"></label>
+                <label class="field-label">Responsável pela obra<input data-work-detail="manager"></label>
+                <label class="field-label">Início planejado<input type="date" data-work-detail="plannedStart"></label>
+                <label class="field-label">Término planejado<input type="date" data-work-detail="plannedEnd"></label>
+                <label class="field-label span-2">Descrição<textarea data-work-detail="description" rows="3"></textarea></label>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel work-phases-panel">
+            <div class="panel-header"><div><p class="eyebrow">AVANÇO FÍSICO</p><h3>Etapas da obra</h3></div><button class="text-button" id="work-add-phase">＋ Adicionar etapa</button></div>
+            <div class="phase-weight-note" id="phase-weight-note"></div>
+            <div class="work-phases" id="work-phases"></div>
+          </article>
+        </div>
+        </div>
+
+        <div data-work-tab-panel="budget" hidden>
+          <section id="work-budget-content">
+            <div class="budget-empty panel"><p class="eyebrow">ORÇAMENTO DA OBRA</p><h3>Nenhum orçamento cadastrado</h3><p>Quando uma planilha-base for vinculada a este cliente, a análise planejado × realizado aparecerá aqui.</p></div>
+          </section>
+        </div>
+
+        <div data-work-tab-panel="documents" hidden>
+        <article class="panel work-documents-panel">
+          <div class="panel-header"><div><p class="eyebrow">CONTROLE DOCUMENTAL</p><h3>Documentos da obra</h3></div><div class="work-doc-tools"><input type="search" id="work-document-search" placeholder="Buscar documento" aria-label="Buscar documentos"><button class="button button-secondary" id="work-add-document">＋ Adicionar documento</button></div></div>
+          <p class="work-disclaimer">Checklist operacional. Confirme as exigências específicas com os responsáveis técnico e jurídico.</p>
+          <div class="work-documents" id="work-documents"></div>
+        </article>
+        </div>
+
+        <div data-work-tab-panel="overview">
+        <div class="work-secondary-grid">
+          <article class="panel">
+            <div class="panel-header"><div><p class="eyebrow">PRÓXIMAS AÇÕES</p><h3>Pendências</h3></div><button class="text-button" id="work-add-task">＋ Adicionar</button></div>
+            <div class="work-task-list" id="work-tasks"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header"><div><p class="eyebrow">EQUIPE</p><h3>Contatos importantes</h3></div><button class="text-button" id="work-add-contact">＋ Adicionar</button></div>
+            <div class="work-contact-list" id="work-contacts"></div>
+          </article>
+        </div>
+        </div>
+
+        <div data-work-tab-panel="journal" hidden>
+          <div class="work-journal-grid">
+            <article class="panel work-journal-form">
+              <div class="panel-header"><div><p class="eyebrow">NOVO REGISTRO</p><h3>Relatório diário da obra</h3></div><span class="privacy-pill">Salvo localmente</span></div>
+              <div class="journal-form-grid">
+                <label>Data<input type="date" id="journal-date"></label>
+                <label>Clima<select id="journal-weather"><option>Ensolarado</option><option>Nublado</option><option>Chuva leve</option><option>Chuva forte</option><option>Vento forte</option></select></label>
+                <label>Jornada<select id="journal-workday"><option>Normal</option><option>Parcial</option><option>Paralisada</option></select></label>
+                <label>Horas de chuva<input type="number" min="0" max="24" step="0.5" id="journal-rain-hours" value="0"></label>
+                <label>Efetivo no dia<input type="number" min="0" id="journal-workforce" value="0"></label>
+                <label class="span-2">Empreiteiros/equipes ausentes<input id="journal-absent" placeholder="Informe quem faltou e o impacto"></label>
+                <label class="span-2">Serviços executados<textarea id="journal-activities" rows="4" placeholder="O que foi realizado hoje?"></textarea></label>
+                <label class="span-2">Ocorrências e impedimentos<textarea id="journal-occurrences" rows="3" placeholder="Chuva, falta de material, atraso, segurança..."></textarea></label>
+                <label class="span-2">Decisões tomadas<textarea id="journal-decisions" rows="2"></textarea></label>
+                <label class="span-2">Próximos passos<textarea id="journal-next" rows="2"></textarea></label>
+              </div>
+              <button class="button button-primary full-width" id="journal-save">Adicionar ao diário</button>
+            </article>
+            <article class="panel work-journal-summary">
+              <div class="panel-header"><div><p class="eyebrow">HISTÓRICO</p><h3>Registros da obra</h3></div><span class="panel-total" id="journal-summary-count">0 registros</span></div>
+              <div class="journal-insights" id="journal-insights"></div>
+              <div class="work-journal-list" id="work-journal-list"></div>
+            </article>
+          </div>
+        </div>
