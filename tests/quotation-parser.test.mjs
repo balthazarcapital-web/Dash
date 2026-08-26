@@ -156,3 +156,30 @@ test("relaciona cada linha a um único tipo de produto", () => {
   assert.equal(mapped["valvula-extra"], "");
   assert.equal(new Set(Object.values(mapped).filter(Boolean)).size, 6);
 });
+
+test("reconhece embalagem equivalente, mas bloqueia equivalência comercial ou técnica incerta", () => {
+  const quote = {
+    request: { items: [
+      { id: "cimento", number: 1, quantity: 10, unit: "KG", description: "CIMENTO QUEIMADO" },
+      { id: "lona", number: 2, quantity: 6, unit: "METROS", description: "LONA" },
+      { id: "pu", number: 3, quantity: 2, unit: "UN", description: "SILICONE PU 40" }
+    ] },
+    suppliers: [{ id: "balaroti", name: "Balaroti", items: [
+      { id: "cimento-balaroti", description: "CIMENTO QUEIMADO 5KG DIA DE CHUVA", quantity: 2, unit: "GL", unitPrice: 234.91, quotedTotal: 469.82 },
+      { id: "lona-balaroti", description: "LONA PLASTICA 6X4M PRETO 150 MICRAS", quantity: 1, unit: "PC", unitPrice: 34.31, quotedTotal: 34.31 },
+      { id: "pu-balaroti", description: "SELANTE PU FIX 40 387G", quantity: 2, unit: "PC", unitPrice: 18.9, quotedTotal: 37.8 }
+    ] }],
+    divergences: []
+  };
+  reconcile(quote);
+  const items = Object.fromEntries(quote.suppliers[0].items.map(item => [item.id, item]));
+  assert.equal(items["cimento-balaroti"].requestItemId, "cimento");
+  assert.deepEqual(items["cimento-balaroti"].equivalence, {
+    status: "SATISFIED", packageQuantity: 5, packageUnit: "kg", equivalentQuantity: 10, equivalentUnit: "KG", equivalentUnitPrice: 46.982,
+    note: "2 GL × 5 kg = 10 KG solicitados."
+  });
+  assert.equal(items["lona-balaroti"].requestItemId, "lona");
+  assert.equal(items["lona-balaroti"].equivalence.status, "REVIEW_REQUIRED");
+  assert.equal(items["pu-balaroti"].requestItemId, "pu");
+  assert.equal(items["pu-balaroti"].equivalence.status, "REVIEW_REQUIRED");
+});

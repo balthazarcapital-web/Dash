@@ -107,9 +107,10 @@
   }
   function mappedSupplierItemsTotal(supplier){return toNumber(supplier.mappedItemsTotal)||(supplier.items||[]).reduce((sum,item)=>item.requestItemId?sum+toNumber(item.quotedTotal||toNumber(item.quantity)*toNumber(item.unitPrice)):sum,0)}
   function itemTotalForRequest(item,requestItem){
-    if(!item||!requestItem||!item.unitPrice)return 0;
+    const unitPrice=toNumber(item?.equivalence?.equivalentUnitPrice)||toNumber(item?.unitPrice);if(!item||!requestItem||!unitPrice)return 0;
     const sameQuantity=!item.quantity||Math.abs(toNumber(item.quantity)-toNumber(requestItem.quantity))<0.0001;
-    return sameQuantity&&toNumber(item.quotedTotal)>0?toNumber(item.quotedTotal):toNumber(requestItem.quantity)*toNumber(item.unitPrice);
+    if(item?.equivalence?.equivalentQuantity)return toNumber(item.quotedTotal)||toNumber(requestItem.quantity)*unitPrice;
+    return sameQuantity&&toNumber(item.quotedTotal)>0?toNumber(item.quotedTotal):toNumber(requestItem.quantity)*unitPrice;
   }
   function renderReview(){
     const quote=qstate.quote,blocking=(quote.divergences||[]).filter(row=>row.severity==="blocking"&&!row.resolved);
@@ -128,12 +129,13 @@
   }
   function renderComparison(){
     const quote=qstate.quote,suppliers=quote.suppliers||[],items=quote.request.items||[];
+    const comparisonPrice=item=>toNumber(item?.equivalence?.equivalentUnitPrice)||toNumber(item?.unitPrice);
     const comparisonMatch=(supplier,requestItemId)=>{const matches=(supplier.items||[]).filter(item=>item.requestItemId===requestItemId);if(matches.length<=1)return matches[0];return {...matches[0],description:matches.map(item=>item.description).join(" • "),quantity:matches.reduce((sum,item)=>sum+toNumber(item.quantity),0),unitPrice:matches.reduce((sum,item)=>sum+toNumber(item.unitPrice),0),quotedTotal:matches.reduce((sum,item)=>sum+toNumber(item.quotedTotal||toNumber(item.quantity)*toNumber(item.unitPrice)),0),confidence:Math.min(...matches.map(item=>Number(item.confidence||0)))} };
     let html=`<thead><tr><th rowspan="2">Item solicitado</th><th rowspan="2">Qtd.</th>${suppliers.map(s=>`<th colspan="2">${escapeHtml(s.name||"Fornecedor")}</th>`).join("")}<th colspan="2" class="best-col">Menor valor</th></tr><tr>${suppliers.map(()=>"<th>Unit.</th><th>Total</th>").join("")}<th class="best-col">Unit.</th><th class="best-col">Total</th></tr></thead><tbody>`;
     for(const requestItem of items){
-      const values=suppliers.map(s=>comparisonMatch(s,requestItem.id));const valid=values.filter(item=>item?.unitPrice>0&&(item.confidence>=.62||quote.divergences?.find(div=>div.itemId===item.id&&div.type==="confidence")?.resolved));const best=valid.length?Math.min(...valid.map(item=>item.unitPrice)):0;
-      const bestItem=valid.find(item=>item.unitPrice===best);
-      html+=`<tr><td><strong>${escapeHtml(requestItem.description)}</strong><small>${escapeHtml(requestItem.unit||"UN")}</small></td><td>${requestItem.quantity}</td>${values.map(item=>item?.unitPrice?`<td class="${item.unitPrice===best&&valid.includes(item)?"lowest":""}" title="${escapeHtml(item.description||"")}">${money.format(item.unitPrice)}<small class="match-confidence ${item.confidence>=.62?"high":"review"}">${item.confidence>=.62?"Alta":"Revisar"} ${Math.round((item.confidence||0)*100)}%</small></td><td>${money.format(itemTotalForRequest(item,requestItem))}<small>${escapeHtml(item.quantity||requestItem.quantity)} ${escapeHtml(item.unit||requestItem.unit||"UN")}</small></td>`:'<td class="missing">NÃO COTADO</td><td class="missing">—</td>').join("")}<td class="best-col lowest">${best?money.format(best):"—"}</td><td class="best-col">${bestItem?money.format(itemTotalForRequest(bestItem,requestItem)):"—"}</td></tr>`;
+      const values=suppliers.map(s=>comparisonMatch(s,requestItem.id));const valid=values.filter(item=>comparisonPrice(item)>0&&(item.confidence>=.62||quote.divergences?.find(div=>div.itemId===item.id&&div.type==="confidence")?.resolved));const best=valid.length?Math.min(...valid.map(comparisonPrice)):0;
+      const bestItem=valid.find(item=>comparisonPrice(item)===best);
+      html+=`<tr><td><strong>${escapeHtml(requestItem.description)}</strong><small>${escapeHtml(requestItem.unit||"UN")}</small></td><td>${requestItem.quantity}</td>${values.map(item=>comparisonPrice(item)?`<td class="${comparisonPrice(item)===best&&valid.includes(item)?"lowest":""}" title="${escapeHtml(item.description||"")}">${money.format(comparisonPrice(item))}<small class="match-confidence ${item.confidence>=.62?"high":"review"}">${item.equivalence?.status==="REVIEW_REQUIRED"?"Validar":item.confidence>=.62?"Alta":"Revisar"} ${Math.round((item.confidence||0)*100)}%</small></td><td>${money.format(itemTotalForRequest(item,requestItem))}<small>${escapeHtml(`${item.quantity||requestItem.quantity} ${item.unit||requestItem.unit||"UN"}${item.equivalence?.packageQuantity?` • embalagem ${item.equivalence.packageQuantity} ${item.equivalence.packageUnit}`:""}${item.equivalence?.equivalentUnitPrice?` • comercial ${money.format(item.unitPrice)}/${item.unit||"UN"}`:""}`)}</small></td>`:'<td class="missing">NÃO COTADO</td><td class="missing">—</td>').join("")}<td class="best-col lowest">${best?money.format(best):"—"}</td><td class="best-col">${bestItem?money.format(itemTotalForRequest(bestItem,requestItem)):"—"}</td></tr>`;
     }
     html+=`<tr class="comparison-total-row"><td colspan="2">TOTAL FINAL</td>${suppliers.map(s=>`<td colspan="2">${money.format(supplierTotal(s))}</td>`).join("")}<td colspan="2" class="best-col">${suppliers.length?money.format(Math.min(...suppliers.map(supplierTotal))):"—"}</td></tr></tbody>`;
     $("#comparison-table").innerHTML=html;

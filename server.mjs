@@ -192,7 +192,7 @@ function quoteSheetValues(quote) {
     const prices = [];
     suppliers.forEach(supplier => {
       const item = relatedSupplierItem(supplier, requestItem);
-      const unit = Number(item?.unitPrice || 0), total = unit ? Number((unit * Number(requestItem.quantity || 0)).toFixed(2)) : "";
+      const unit = item ? effectiveUnitPrice(item, requestItem) : 0, total = item ? effectiveItemTotal(item, requestItem) : "";
       row.push(unit || "", total); if (total) prices.push({ total, name: supplier.name || "Fornecedor" });
     });
     const best = prices.length ? prices.reduce((current, entry) => entry.total < current.total ? entry : current) : null;
@@ -704,6 +704,18 @@ function textQuoteItems(text) {
   // Este leitor une as linhas até o marcador de desconto 0,00 e preserva os
   // valores unitário/total que aparecem imediatamente após a unidade.
   if (/BALAROTI|SAC BALAROTI/i.test(text)) {
+    const normalizedSource = norm(text);
+    const sourcePosition = item => {
+      const signature = norm(item.description || "").split(/\s+/).filter(Boolean).slice(0, 3).join(" ");
+      return signature ? normalizedSource.indexOf(signature) : -1;
+    };
+    const finishBalarotiItems = () => items
+      .sort((a, b) => {
+        const aIndex = sourcePosition(a);
+        const bIndex = sourcePosition(b);
+        return (aIndex < 0 ? Number.MAX_SAFE_INTEGER : aIndex) - (bIndex < 0 ? Number.MAX_SAFE_INTEGER : bIndex);
+      })
+      .map(({ _key, ...item }) => item);
     // Alguns PDFs recentes da Balaroti removem os espaços entre tamanho/marca,
     // quantidade, unidade e preço. Ex.: "5kgSuvinil2 GL234,91469,82".
     const compactPattern = /^(.*?)(\d+(?:[.,]\d+)?)\s+(PC|UN|TB|KT|BR|PR|SC|CX|RL|GL)\s*(\d{1,3}(?:\.\d{3})*,\d{2})(\d{1,3}(?:\.\d{3})*,\d{2})(?:\d+)?\s*-\s*(.*)$/i;
@@ -729,7 +741,7 @@ function textQuoteItems(text) {
       const description = parts.join(" ").replace(/^\d+\s*-\s*/, "").trim();
       if (description) addItem(description, header[2], header[3].toUpperCase(), header[4], header[5], 0.96, splitTrailingBrand(header[1]).brand);
     }
-    if (items.length) return items.map(({ _key, ...item }) => item);
+    if (items.length) return finishBalarotiItems();
     const headerPattern = /^(.*?)(\d+(?:[.,]\d+)?)\s+(PC|UN|TB|KT|BR|PR|SC|CX)\s*(\d{1,3}(?:\.\d{3})*,\d{2})(\d{1,3}(?:\.\d{3})*,\d{2})(.*)$/i;
     for (let index = 0; index < lines.length; index++) {
       const match = lines[index].match(headerPattern);
@@ -750,7 +762,7 @@ function textQuoteItems(text) {
       const description = descriptionParts.join(" ").replace(/^\d+\s*-\s*/, "").replace(/0,00\s*$/, "").trim();
       if (description) addItem(description, match[2], match[3].toUpperCase(), match[4], match[5], 0.97, product.brand);
     }
-    if (items.length) return items.map(({ _key, ...item }) => item);
+    if (items.length) return finishBalarotiItems();
   }
 
   // Sistemas de materiais de construção normalmente exportam NCM, unidade,
@@ -908,6 +920,19 @@ function primaryProductKind(value) {
   const kinds = ["engate", "cano", "chuveiro", "mictorio", "bacia", "cuba", "registro", "torneira", "sifao", "anel", "spud", "tubo", "assento", "valvula", "parafuso", "fita"];
   return kinds.map(kind => ({ kind, index: canonical.search(new RegExp(`\\b${kind}\\b`)) })).filter(row => row.index >= 0).sort((a, b) => a.index - b.index)[0]?.kind || "";
 }
+function technicalQualifier(value) {
+  const canonical = canonicalMatchText(value).replace(/\bespude\b/g, "spud");
+  return ["mictorio", "lavatorio", "bacia", "chuveiro", "cuba"].find(kind => new RegExp(`\\b${kind}\\b`).test(canonical)) || "";
+}
+function incompatibleProducts(a, b) {
+  const kindA = primaryProductKind(a), kindB = primaryProductKind(b);
+  if (kindA && kindB && kindA !== kindB) return true;
+  if (kindA === "valvula" && kindA === kindB) {
+    const qualifierA = technicalQualifier(a), qualifierB = technicalQualifier(b);
+    return Boolean(qualifierA && qualifierB && qualifierA !== qualifierB);
+  }
+  return false;
+}
 function similarity(a, b) {
   const ta = tokens(a), tb = tokens(b); if (!ta.size || !tb.size) return 0;
   const intersection = [...ta].filter(token => tb.has(token)).length;
@@ -922,6 +947,64 @@ function similarity(a, b) {
   if (kindA && kindB && kindA !== kindB) return Math.min(0.18, score * 0.3);
   if (kindA && kindA === kindB) score += 0.12;
   return Math.min(1, score);
+}
+
+function comparableUnit(unit) {
+  return norm(unit).replace(/^(?:kgs?|quilo(?:s)?)$/, "kg").replace(/^(?:gr?|grama(?:s)?)$/, "g").replace(/^(?:me|mt|ml|m)$/, "m").replace(/^(?:cm|centimetro(?:s)?)$/, "cm").replace(/^(?:mm|milimetro(?:s)?)$/, "mm").replace(/^(?:pc|un|und|pca)$/, "un");
+}
+
+function productFamily(value) {
+  const text = canonicalMatchText(value);
+  if (/cimento queimado/.test(text)) return "cimento-queimado";
+  if (/\blona\b/.test(text)) return "lona";
+  if (/fita crepe/.test(text)) return "fita-crepe";
+  if (/(?:silicone|selante).*\bpu\b|\bpu\b.*(?:silicone|selante)/.test(text)) return "selante-pu";
+  return "";
+}
+
+function quantityFactor(fromUnit, toUnit) {
+  const from = comparableUnit(fromUnit), to = comparableUnit(toUnit);
+  if (from === to) return 1;
+  const factors = { kg: 1000, g: 1, m: 1000, cm: 10, mm: 1 };
+  if (!(from in factors) || !(to in factors)) return 0;
+  const sameDimension = (["kg", "g"].includes(from) && ["kg", "g"].includes(to)) || (["m", "cm", "mm"].includes(from) && ["m", "cm", "mm"].includes(to));
+  return sameDimension ? factors[from] / factors[to] : 0;
+}
+
+function commercialEquivalence(item, requestItem) {
+  const requestedUnit = comparableUnit(requestItem.unit), description = canonicalMatchText(item.description), requestDescription = canonicalMatchText(requestItem.description);
+  const supplierFamily = productFamily(description), requestFamily = productFamily(requestDescription);
+  const hasTechnicalVariant = supplierFamily === "selante-pu" && requestFamily === "selante-pu" && /\bselante\b/.test(description) !== /\bselante\b/.test(requestDescription);
+  const dimension = description.match(/(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)(mm|cm|m)\b/i);
+  if (dimension && requestedUnit === "m") {
+    const sides = [Number(dimension[1]), Number(dimension[2])];
+    const equivalentQuantity = Math.max(...sides) * quantityFactor(dimension[3], requestedUnit);
+    return { status: "REVIEW_REQUIRED", packageQuantity: null, packageUnit: "", equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice: null, note: `${item.quantity} ${item.unit} de ${item.description} (${dimension[1]} × ${dimension[2]} ${dimension[3]}) para a necessidade de ${requestItem.quantity} ${requestItem.unit}; validar a equivalência comercial.` };
+  }
+  const packageMatch = description.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*(kg|g|m|cm|mm|l|ml)\b/i);
+  if (packageMatch) {
+    const packageQuantity = Number(packageMatch[1]), packageUnit = comparableUnit(packageMatch[2]), factor = quantityFactor(packageUnit, requestedUnit);
+    if (factor) {
+      const equivalentQuantity = Number((Number(item.quantity || 0) * packageQuantity * factor).toFixed(4));
+      const equivalentUnitPrice = equivalentQuantity ? Number((Number(item.quotedTotal || Number(item.quantity || 0) * Number(item.unitPrice || 0)) / equivalentQuantity).toFixed(4)) : null;
+      const status = Math.abs(equivalentQuantity - Number(requestItem.quantity || 0)) < 0.0001 ? "SATISFIED" : equivalentQuantity < Number(requestItem.quantity || 0) ? "INSUFFICIENT" : "EXCESS";
+      return { status, packageQuantity, packageUnit, equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice, note: `${item.quantity} ${item.unit} × ${packageQuantity} ${packageUnit} = ${equivalentQuantity} ${requestItem.unit} solicitados.` };
+    }
+  }
+  if (comparableUnit(item.unit) === requestedUnit && Number(item.quantity || 0)) {
+    const equivalentQuantity = Number(item.quantity), equivalentUnitPrice = Number(item.unitPrice || 0);
+    if (hasTechnicalVariant) return { status: "REVIEW_REQUIRED", packageQuantity: null, packageUnit: "", equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice, note: `Fornecedor cotou “${item.description}”; confirme a equivalência técnica com “${requestItem.description}”.` };
+    return { status: Math.abs(equivalentQuantity - Number(requestItem.quantity || 0)) < 0.0001 ? "SATISFIED" : equivalentQuantity < Number(requestItem.quantity || 0) ? "INSUFFICIENT" : "EXCESS", packageQuantity: null, packageUnit: "", equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice, note: "Quantidade comercial na mesma unidade do pedido." };
+  }
+  return { status: "REVIEW_REQUIRED", packageQuantity: null, packageUnit: "", equivalentQuantity: null, equivalentUnit: requestItem.unit, equivalentUnitPrice: null, note: `Unidade comercial ${item.quantity} ${item.unit || ""} precisa de validação para atender ${requestItem.quantity} ${requestItem.unit}.` };
+}
+
+function effectiveUnitPrice(item, requestItem) {
+  return Number(item?.equivalence?.equivalentUnitPrice || item?.unitPrice || 0);
+}
+
+function effectiveItemTotal(item, requestItem) {
+  return Number((effectiveUnitPrice(item, requestItem) * Number(requestItem?.quantity || 0)).toFixed(2));
 }
 
 function reconcile(quote) {
@@ -942,9 +1025,11 @@ function reconcile(quote) {
       const compositeRequest = requestItems.length === 1 || requestItems.length < (supplier.items || []).length;
       for (const requestItem of lockedRequest ? [] : requestItems) {
         if (matched.has(requestItem.id) && !compositeRequest) continue;
+        if (incompatibleProducts(item.description, requestItem.description)) continue;
         let score = similarity(item.description, requestItem.description);
+        const itemFamily = productFamily(item.description), requestFamily = productFamily(requestItem.description);
+        if (itemFamily && itemFamily === requestFamily) score += 0.42;
         if (item.quantity && requestItem.quantity && Math.abs(item.quantity - requestItem.quantity) < 0.0001) score += 0.12;
-        const comparableUnit = unit => norm(unit).replace(/^(?:me|mt|ml|m)$/, "m").replace(/^(?:pc|un|und|pca)$/, "un");
         if (item.unit && requestItem.unit && comparableUnit(item.unit) === comparableUnit(requestItem.unit)) score += 0.08;
         score = Math.min(1, score);
         if (score > best.score) best = { score, item: requestItem };
@@ -958,7 +1043,10 @@ function reconcile(quote) {
       }
       matched.add(item.requestItemId);
       const requestItem = requestItems.find(row => row.id === item.requestItemId);
-      if (item.quantity && Math.abs(item.quantity - requestItem.quantity) > 0.0001) divergences.push({ id: `${supplier.id}:${item.id}:quantity`, supplierId: supplier.id, itemId: item.id, requestItemId: requestItem.id, type: "quantity", severity: "blocking", message: `${requestItem.description}: pedido ${requestItem.quantity} ${requestItem.unit}, fornecedor ${item.quantity} ${item.unit || requestItem.unit}.`, resolved: false });
+      const equivalence = commercialEquivalence(item, requestItem);
+      item.equivalence = equivalence;
+      if (equivalence.status === "REVIEW_REQUIRED") divergences.push({ id: `${supplier.id}:${item.id}:equivalence`, supplierId: supplier.id, itemId: item.id, requestItemId: requestItem.id, type: "equivalence", severity: "blocking", message: `${requestItem.description}: ${equivalence.note}`, resolved: false });
+      if (["INSUFFICIENT", "EXCESS"].includes(equivalence.status)) divergences.push({ id: `${supplier.id}:${item.id}:quantity`, supplierId: supplier.id, itemId: item.id, requestItemId: requestItem.id, type: "quantity", severity: "blocking", message: `${requestItem.description}: pedido ${requestItem.quantity} ${requestItem.unit}; fornecedor atende ${equivalence.equivalentQuantity} ${requestItem.unit}. ${equivalence.status === "INSUFFICIENT" ? "Quantidade cotada insuficiente." : "Quantidade cotada superior à solicitada."}`, resolved: false });
       if (item.confidence < 0.62) divergences.push({ id: `${supplier.id}:${item.id}:confidence`, supplierId: supplier.id, itemId: item.id, requestItemId: requestItem.id, type: "confidence", severity: "blocking", message: `Confirme a correspondência de “${item.description}” com “${requestItem.description}”.`, resolved: false });
     }
     for (const requestItem of requestItems) if (!matched.has(requestItem.id)) divergences.push({ id: `${supplier.id}:${requestItem.id}:missing`, supplierId: supplier.id, requestItemId: requestItem.id, type: "missing", severity: "warning", message: `${supplier.name || "Fornecedor"} não cotou “${requestItem.description}”.`, resolved: true });
@@ -1020,7 +1108,7 @@ async function buildWorkbookFromDriveTemplate(quote, targetPath) {
     const values = [requestItem.number || index + 1, Number(requestItem.quantity || 0), requestItem.unit || "UN", requestItem.description || ""];
     suppliers.forEach(supplier => {
       const match = relatedSupplierItem(supplier, requestItem);
-      const unit = Number(match?.unitPrice || 0); values.push(unit || "", unit ? unit * Number(requestItem.quantity || 0) : "");
+      const unit = match ? effectiveUnitPrice(match, requestItem) : 0; values.push(unit || "", unit ? effectiveItemTotal(match, requestItem) : "");
     });
     while (values.length < 10) values.push("", "");
     const totals = [values[5], values[7], values[9]].filter(value => typeof value === "number" && value > 0);
@@ -1065,7 +1153,8 @@ async function buildWorkbookNode(quote, targetPath) {
     suppliers.forEach((supplier, supplierIndex) => {
       const match = relatedSupplierItem(supplier, requestItem);
       const unitColumn = 5 + supplierIndex * 2, totalColumn = unitColumn + 1;
-      if (match && Number(match.unitPrice) > 0) { row.getCell(unitColumn).value = Number(match.unitPrice); row.getCell(totalColumn).value = { formula: `${row.getCell(4).address}*${row.getCell(unitColumn).address}` }; totalCells.push(row.getCell(totalColumn).address); }
+      const comparableUnitPrice = match ? effectiveUnitPrice(match, requestItem) : 0;
+      if (match && comparableUnitPrice > 0) { row.getCell(unitColumn).value = comparableUnitPrice; row.getCell(totalColumn).value = { formula: `${row.getCell(4).address}*${row.getCell(unitColumn).address}` }; totalCells.push(row.getCell(totalColumn).address); }
     });
     const bestColumn = 5 + suppliers.length * 2;
     if (totalCells.length) { row.getCell(bestColumn).value = { formula: `MIN(${totalCells.join(",")})` }; row.getCell(bestColumn + 1).value = suppliers.map((supplier, supplierIndex) => `IF(${row.getCell(6 + supplierIndex * 2).address}=${row.getCell(bestColumn).address},"${String(supplier.name || "").replaceAll('"', '""')}","")`).join("&"); row.getCell(bestColumn + 1).value = { formula: row.getCell(bestColumn + 1).value }; }
@@ -1115,8 +1204,9 @@ async function buildWorkbook(quote, targetPath) {
     suppliers.forEach((supplier, supplierIndex) => {
       const qItem = relatedSupplierItem(supplier, requestItem);
       const unitCol = excelCol(5 + supplierIndex * 2), totalCol = excelCol(6 + supplierIndex * 2);
-      if (qItem?.unitPrice > 0) {
-        sheet.getRange(`${unitCol}${row}`).values = [[qItem.unitPrice]];
+      const comparableUnitPrice = qItem ? effectiveUnitPrice(qItem, requestItem) : 0;
+      if (comparableUnitPrice > 0) {
+        sheet.getRange(`${unitCol}${row}`).values = [[comparableUnitPrice]];
         sheet.getRange(`${totalCol}${row}`).formulas = [[`=${unitCol}${row}*$B${row}`]];
       }
     });
