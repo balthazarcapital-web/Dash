@@ -1025,7 +1025,7 @@ async function buildWorkbookNode(quote, targetPath) {
   const workbook = new ExcelJS.Workbook();
   workbook.creator = "Absolutta Dashboard";
   const sheet = workbook.addWorksheet("Mapa de Cotação", { views: [{ state: "frozen", ySplit: 7 }] });
-  const suppliers = (quote.suppliers || []).slice(0, 5);
+  const suppliers = quote.suppliers || [];
   const columns = [
     { header: "ITEM", key: "item", width: 9 }, { header: "DESCRIÇÃO", key: "description", width: 52 },
     { header: "UNID.", key: "unit", width: 10 }, { header: "QTDE.", key: "quantity", width: 11 }
@@ -1060,7 +1060,7 @@ async function buildWorkbookNode(quote, targetPath) {
 }
 
 async function buildWorkbook(quote, targetPath) {
-  if (quote.request.mapTemplate?.driveId && driveConfigured()) return buildWorkbookFromDriveTemplate(quote, targetPath);
+  if (quote.request.mapTemplate?.driveId && driveConfigured() && (quote.suppliers || []).length <= 3) return buildWorkbookFromDriveTemplate(quote, targetPath);
   if (isVercel) return buildWorkbookNode(quote, targetPath);
   const { Workbook, SpreadsheetFile } = await artifactTool();
   const workbook = Workbook.create();
