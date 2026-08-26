@@ -1,25 +1,15 @@
-import { handleRequest } from "../server.mjs";
-
-export default async function handler(req, res) {
-  // Vercel calls this with Node's req/res. Netlify invokes functions with an
-  // event object, so adapt it while keeping the shared server implementation.
-  if (req && typeof req.httpMethod === "string") {
-    const event = req;
-    let response = { statusCode: 200, headers: {}, body: "" };
-    const nodeReq = {
-      method: event.httpMethod,
-      url: event.rawUrl || event.path || "/",
-      headers: event.headers || {},
-      async *[Symbol.asyncIterator]() {
-        if (event.body) yield Buffer.from(event.body, event.isBase64Encoded ? "base64" : "utf8");
-      }
-    };
-    const nodeRes = {
-      writeHead(statusCode, headers) { response.statusCode = statusCode; response.headers = headers; },
-      end(body = "") { response.body = Buffer.isBuffer(body) ? body.toString("base64") : String(body); }
-    };
-    await handleRequest(nodeReq, nodeRes);
-    return { ...response, isBase64Encoded: false };
+const bases={deterlimp:["13Kmg41VDV8KUijPucj2TxCFdElFD6Vfb1WY4WwB7msU","1856239408"],carlos_bezerra:["1PE6KUaEEshp2Kk1d9eExIFp53DzNTJST7mJc4pMZEuw","1856239408"],clinica_gianna:["1_LTDwN25pSKXfofahLgFiRGndb79cWNHxi8iR3v_VHM","1856239408"],dr_clovis_cmfs:["1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU","1856239408"]};
+const json=(statusCode,body)=>({statusCode,headers:{"content-type":"application/json","cache-control":"no-store"},body:JSON.stringify(body)});
+export default async function handler(event,res){
+  if(event&&typeof event.httpMethod==="string"){
+    const url=new URL(event.rawUrl||event.path||"/","https://netlify.local");
+    const connected=Boolean(process.env.GOOGLE_CLIENT_ID&&process.env.GOOGLE_CLIENT_SECRET&&process.env.GOOGLE_REFRESH_TOKEN);
+    if(url.pathname==="/api/health")return json(200,{ok:true,runtime:"netlify",driveConnected:connected});
+    if(url.pathname==="/api/base"){
+      const base=bases[String(url.searchParams.get("clientId")||"").toLowerCase()]; if(!base)return json(404,{error:"Base deste cliente não configurada."}); if(!connected)return json(503,{error:"Google Drive ainda não conectado na publicação."});
+      try{const tr=await fetch("https://oauth2.googleapis.com/token",{method:"POST",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({client_id:process.env.GOOGLE_CLIENT_ID,client_secret:process.env.GOOGLE_CLIENT_SECRET,refresh_token:process.env.GOOGLE_REFRESH_TOKEN,grant_type:"refresh_token"})});const token=await tr.json();if(!tr.ok||!token.access_token)return json(502,{error:"Não foi possível autenticar no Google Drive."});const r=await fetch(`https://docs.google.com/spreadsheets/d/${base[0]}/export?format=csv&gid=${base[1]}`,{headers:{authorization:`Bearer ${token.access_token}`}});const text=await r.text();if(!r.ok)return json(r.status,{error:`Google Sheets retornou ${r.status}.`});return{statusCode:200,headers:{"content-type":"text/csv; charset=utf-8","cache-control":"private, no-store"},body:text};}catch{return json(502,{error:"Falha ao consultar o Google Drive."});}
+    }
+    return json(404,{error:"Endpoint não encontrado."});
   }
-  return handleRequest(req, res);
+  const {handleRequest}=await import("../server.mjs"); return handleRequest(event,res);
 }
