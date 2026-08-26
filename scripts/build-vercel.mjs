@@ -3,7 +3,7 @@ import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
 const output = path.join(root, "public");
-const files = ["index.html", "styles.css", "data.js", "quotes.js", "works.js", "app.js", "web-demo.js", "works-data.json", "budget-dr-clovis.json"];
+const files = ["index.html", "locacoes.html", "locacoes.js", "styles.css", "data.js", "quotes.js", "works.js", "app.js", "web-demo.js", "works-data.json", "budget-dr-clovis.json"];
 const directories = ["comparativo-cli-inova", "erp-compras"];
 
 await fs.rm(output, { recursive: true, force: true });
