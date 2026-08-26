@@ -12,5 +12,5 @@ export default async function handler(event,res){
     }
     return json(404,{error:"Endpoint não encontrado."});
   }
-  const {handleRequest}=await import("../server.mjs"); return handleRequest(event,res);
+  return json(404,{error:"Endpoint não encontrado."});
 }
