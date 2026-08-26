@@ -66,6 +66,7 @@
     const select=$("#quote-existing-order");if(select.options.length>1)return;
     qstate.orders().forEach((order,index)=>select.add(new Option(`${order.number?`#${order.number}`:`Pedido ${index+1}`} • ${order.category} • ${order.description}`,String(index))));
   }
+  function filterOrders(query){const term=String(query||"").trim().toLowerCase(),select=$("#quote-existing-order");if(!select)return;[...select.options].forEach((option,index)=>{option.hidden=index>0&&Boolean(term&&!option.textContent.toLowerCase().includes(term))})}
   function renderRequest(){
     const request=qstate.quote.request;populateOrders();
     $("#request-number").value=request.number||"";$("#request-category").value=request.category||"";$("#request-work").value=request.work||request.costCenter||qstate.client.work||qstate.client.name;$("#request-requester").value=request.requester||"";$("#request-date").value=toISO(request.date);$("#request-needed").value=toISO(request.neededDate);
@@ -199,6 +200,7 @@
     $("#quote-new").addEventListener("click",createQuote);$("[data-create-quote]").addEventListener("click",createQuote);$("#quote-history-toggle").addEventListener("click",()=>{$("#quote-history").hidden=!$("#quote-history").hidden;loadHistory()});$("#quote-history-close").addEventListener("click",()=>$("#quote-history").hidden=true);$("#quote-close-workspace").addEventListener("click",()=>{qstate.quote=null;render()});
     $("#request-import").addEventListener("click",()=>importDocument("request"));$("#request-add-item").addEventListener("click",addRequestItem);$("#supplier-add").addEventListener("click",addSupplier);$("#generate-map").addEventListener("click",generateMap);$("#quote-drive-search").addEventListener("click",searchDrive);$("#save-approval").addEventListener("click",saveApproval);$("#generate-purchase-order").addEventListener("click",generatePurchaseOrder);
     $("#quote-existing-order").addEventListener("change",async event=>{const order=qstate.orders()[Number(event.target.value)];if(!order)return;qstate.quote.request={...qstate.quote.request,number:order.number||"",category:order.category||"",date:order.date||"",requester:order.requester||"",items:[{id:uid("item"),number:1,quantity:1,unit:"UN",description:order.description||"",neededDate:order.delivery||""}]};renderRequest();await saveNow();await searchDrive()});
+    $("#quote-order-search").addEventListener("input",event=>filterOrders(event.target.value));
     const requestFields={"request-number":"number","request-category":"category","request-work":"work","request-requester":"requester","request-date":"date","request-needed":"neededDate"};Object.entries(requestFields).forEach(([id,field])=>$("#"+id).addEventListener("input",event=>{qstate.quote.request[field]=event.target.value;scheduleSave()}));
     document.addEventListener("click",event=>{
       const step=event.target.closest("[data-next-step],[data-quote-step]");if(step&&qstate.quote){goStep(step.dataset.nextStep||step.dataset.quoteStep);return}
