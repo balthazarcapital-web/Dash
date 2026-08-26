@@ -171,6 +171,56 @@ async function driveFetch(url, options = {}) {
   return response;
 }
 
+async function sheetsFetch(pathname, options = {}) {
+  const token = await getGoogleAccessToken();
+  const response = await fetch(`https://sheets.googleapis.com/v4/${pathname}`, { ...options, headers: { Authorization: `Bearer ${token}`, ...(options.headers || {}) } });
+  if (!response.ok) {
+    const message = await response.text().catch(() => "");
+    throw new Error(`Google Planilhas (${response.status}): ${message.slice(0, 500) || response.statusText}`);
+  }
+  return response;
+}
+
+function quoteSheetValues(quote) {
+  const suppliers = quote.suppliers || [];
+  const header = ["ITEM", "DESCRIÇÃO", "UN.", "QTDE."];
+  suppliers.forEach(supplier => header.push(`${supplier.name || "FORNECEDOR"} | UNIT.`, `${supplier.name || "FORNECEDOR"} | TOTAL`));
+  header.push("MENOR TOTAL", "MELHOR FORNECEDOR");
+  const rows = [[quote.clientName || quote.request.work || "ABSOLUTTA"], ["MAPA DE COTAÇÃO"], [`Pedido ${quote.request.category || ""} ${quote.request.number || ""}`], [`Solicitante: ${quote.request.requester || "Não informado"}`], [`Data: ${displayDate(quote.request.date)}`], [], header];
+  (quote.request.items || []).forEach((requestItem, index) => {
+    const row = [requestItem.number || index + 1, requestItem.description || "", requestItem.unit || "UN", Number(requestItem.quantity || 0)];
+    const prices = [];
+    suppliers.forEach(supplier => {
+      const item = relatedSupplierItem(supplier, requestItem);
+      const unit = Number(item?.unitPrice || 0), total = unit ? Number((unit * Number(requestItem.quantity || 0)).toFixed(2)) : "";
+      row.push(unit || "", total); if (total) prices.push({ total, name: supplier.name || "Fornecedor" });
+    });
+    const best = prices.length ? prices.reduce((current, entry) => entry.total < current.total ? entry : current) : null;
+    row.push(best?.total || "", best?.name || ""); rows.push(row);
+  });
+  const totals = ["", "TOTAL POR FORNECEDOR"];
+  suppliers.forEach(supplier => totals.push("", Number(supplierTotalForQuote(supplier, quote).toFixed(2))));
+  return [...rows, totals];
+}
+
+function supplierTotalForQuote(supplier, quote) {
+  const itemsTotal = (quote.request.items || []).reduce((sum, requestItem) => {
+    const item = relatedSupplierItem(supplier, requestItem);
+    return sum + Number(item?.quotedTotal || Number(item?.unitPrice || 0) * Number(requestItem.quantity || 0));
+  }, 0);
+  return itemsTotal + Number(supplier.freightIncluded ? 0 : supplier.freight || 0) + Number(supplier.otherCharges || 0) - Number(supplier.discount || 0);
+}
+
+async function createQuoteGoogleSheet(quote) {
+  const title = `Mapa de Cotação - ${quote.request.category || "Pedido"} ${quote.request.number || ""}`.trim();
+  const created = await sheetsFetch("spreadsheets", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ properties: { title }, sheets: [{ properties: { title: "Mapa de Cotação" } }] }) }).then(response => response.json());
+  const range = encodeURIComponent("Mapa de Cotação!A1");
+  await sheetsFetch(`spreadsheets/${created.spreadsheetId}/values/${range}?valueInputOption=USER_ENTERED`, { method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ majorDimension: "ROWS", values: quoteSheetValues(quote) }) });
+  await sheetsFetch(`spreadsheets/${created.spreadsheetId}:batchUpdate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ requests: [{ repeatCell: { range: { sheetId: 0, startRowIndex: 0, endRowIndex: 2 }, cell: { userEnteredFormat: { textFormat: { bold: true, fontSize: 14 }, backgroundColor: { red: 0.09, green: 0.13, blue: 0.2 }, foregroundColor: { red: 1, green: 1, blue: 1 } } }, fields: "userEnteredFormat(textFormat,backgroundColor,foregroundColor)" } }, { repeatCell: { range: { sheetId: 0, startRowIndex: 6, endRowIndex: 7 }, cell: { userEnteredFormat: { textFormat: { bold: true }, backgroundColor: { red: 0.91, green: 0.95, blue: 0.85 } } }, fields: "userEnteredFormat(textFormat,backgroundColor)" } }, { updateSheetProperties: { properties: { sheetId: 0, gridProperties: { frozenRowCount: 7 } }, fields: "gridProperties.frozenRowCount" } }] }) });
+  if (quote.request.driveFolderId) await driveFetch(`https://www.googleapis.com/drive/v3/files/${created.spreadsheetId}?addParents=${encodeURIComponent(quote.request.driveFolderId)}&supportsAllDrives=true&fields=id`, { method: "PATCH" }).catch(() => {});
+  return { id: created.spreadsheetId, url: created.spreadsheetUrl || `https://docs.google.com/spreadsheets/d/${created.spreadsheetId}/edit`, title, createdAt: isoNow() };
+}
+
 async function findDriveStateFile(name) {
   if (driveStateIds.has(name)) return driveStateIds.get(name);
   const q = encodeURIComponent(`name='${name.replaceAll("'", "\\'")}' and '${driveStateFolderId}' in parents and trashed=false`);
@@ -1417,6 +1467,18 @@ export async function handleRequest(req, res) {
         quote.generated.push({ id: uid("mapa"), filename, createdAt: isoNow(), preview: verification.previewPath ? path.basename(verification.previewPath) : "", verified: !verification.errors.includes("#"), driveId: driveFile?.id || "", driveUrl: driveFile?.webViewLink || "" });
         quote.status = "mapa gerado"; await saveQuote(quote);
         return json(res, 201, { quote, file: quote.generated.at(-1), downloadUrl: driveFile?.webViewLink || `/api/quotes/${quote.id}/files/${encodeURIComponent(filename)}`, previewUrl: verification.previewPath ? `/api/quotes/${quote.id}/files/${encodeURIComponent(path.basename(verification.previewPath))}` : "" });
+      }
+      if (parts[3] === "google-sheet" && req.method === "POST") {
+        reconcile(quote);
+        const blocking = quote.divergences.filter(row => row.severity === "blocking" && !row.resolved);
+        if (!quote.request.items?.length) return json(res, 400, { error: "O pedido ainda não possui itens." });
+        if (!quote.suppliers?.length) return json(res, 400, { error: "Adicione ao menos um fornecedor." });
+        if (blocking.length) return json(res, 409, { error: `Resolva ${blocking.length} divergência(s) antes de criar a planilha.`, divergences: blocking });
+        const mappedPrices = quote.suppliers.flatMap(supplier => supplier.items || []).filter(item => item.requestItemId && Number(item.unitPrice) > 0);
+        if (!mappedPrices.length) return json(res, 409, { error: "Nenhum item de fornecedor foi interpretado e relacionado. Releia os arquivos antes de criar a planilha." });
+        const sheet = await createQuoteGoogleSheet(quote);
+        quote.googleSheets = quote.googleSheets || []; quote.googleSheets.push(sheet); await saveQuote(quote);
+        return json(res, 201, { quote, ...sheet });
       }
       if (parts[3] === "purchase-order" && req.method === "POST") {
         const supplier = quote.suppliers.find(row => row.id === quote.approval?.supplierId);

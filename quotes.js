@@ -123,6 +123,8 @@
     $("#comparison-total-label").textContent=`${quote.request.items?.length||0} itens • ${quote.suppliers?.length||0} fornecedores`;
     const warning=$("#generate-warning");warning.hidden=!blocking.length;warning.innerHTML=blocking.length?`<strong>Geração bloqueada</strong><span>Resolva ${blocking.length} divergência(s) na etapa de conferência.</span>`:"";
     $("#generate-map").disabled=blocking.length>0||!quote.request.items?.length||!quote.suppliers?.length;
+    $("#export-google-sheet").disabled=blocking.length>0||!quote.request.items?.length||!quote.suppliers?.length;
+    const sheet=quote.googleSheets?.at(-1),sheetLink=$("#open-quote-google-sheet");sheetLink.hidden=!sheet;if(sheet)sheetLink.href=sheet.url;
   }
   function renderComparison(){
     const quote=qstate.quote,suppliers=quote.suppliers||[],items=quote.request.items||[];
@@ -182,6 +184,11 @@
     try{const result=await api(`/api/quotes/${qstate.quote.id}/generate`,{method:"POST"});qstate.quote=result.quote;render();qstate.toast("Mapa de cotação gerado e salvo no histórico")}
     catch(error){qstate.toast(error.message);if(error.status===409)goStep(3)}finally{setBusy(button,false)}
   }
+  async function exportGoogleSheet(){
+    const button=$("#export-google-sheet");setBusy(button,true,"Criando planilha...");
+    try{const result=await api(`/api/quotes/${qstate.quote.id}/google-sheet`,{method:"POST"});qstate.quote=result.quote;render();qstate.toast("Mapa criado no Google Planilhas — use o botão Abrir Google Planilhas")}
+    catch(error){qstate.toast(error.message)}finally{setBusy(button,false)}
+  }
   async function searchDrive(){
     const button=$("#quote-drive-search"),feedback=$("#quote-drive-feedback");setBusy(button,true,"Buscando no Drive...");
     try{const result=await api(`/api/quotes/${qstate.quote.id}/drive-search`,{method:"POST"});qstate.quote=result.quote;render();const proposals=(qstate.quote.files||[]).filter(file=>file.role==="quote"),parsed=proposals.reduce((sum,file)=>sum+toNumber(file.parsedItems),0),failed=proposals.filter(file=>file.error||!toNumber(file.parsedItems));showFeedback(feedback,`${result.files?.length||0} arquivo(s) encontrado(s) • ${parsed} item(ns) interpretado(s)${failed.length?` • ${failed.length} orçamento(s) precisam de revisão`:""}`,failed.length?"error":"success");qstate.toast(parsed?"Orçamentos interpretados e relacionados":"Arquivos encontrados, mas sem itens interpretados")}
@@ -199,8 +206,8 @@
 
   function bind(){
     $("#quote-new").addEventListener("click",createQuote);$("[data-create-quote]").addEventListener("click",createQuote);$("#quote-history-toggle").addEventListener("click",()=>{$("#quote-history").hidden=!$("#quote-history").hidden;loadHistory()});$("#quote-history-close").addEventListener("click",()=>$("#quote-history").hidden=true);$("#quote-close-workspace").addEventListener("click",()=>{qstate.quote=null;render()});
-    $("#request-import").addEventListener("click",()=>importDocument("request"));$("#request-add-item").addEventListener("click",addRequestItem);$("#supplier-add").addEventListener("click",addSupplier);$("#generate-map").addEventListener("click",generateMap);$("#quote-drive-search").addEventListener("click",searchDrive);$("#save-approval").addEventListener("click",saveApproval);$("#generate-purchase-order").addEventListener("click",generatePurchaseOrder);
-    $("#quote-existing-order").addEventListener("change",async event=>{const order=qstate.orders()[Number(event.target.value)];if(!order)return;qstate.quote.request={...qstate.quote.request,number:order.number||"",category:order.category||"",date:order.date||"",requester:order.requester||"",items:[{id:uid("item"),number:1,quantity:1,unit:"UN",description:order.description||"",neededDate:order.delivery||""}]};renderRequest();await saveNow();await searchDrive()});
+    $("#request-import").addEventListener("click",()=>importDocument("request"));$("#request-add-item").addEventListener("click",addRequestItem);$("#supplier-add").addEventListener("click",addSupplier);$("#generate-map").addEventListener("click",generateMap);$("#export-google-sheet").addEventListener("click",exportGoogleSheet);$("#quote-drive-search").addEventListener("click",searchDrive);$("#save-approval").addEventListener("click",saveApproval);$("#generate-purchase-order").addEventListener("click",generatePurchaseOrder);
+    $("#quote-existing-order").addEventListener("change",async event=>{const order=qstate.orders()[Number(event.target.value)];if(!order)return;qstate.quote.request={...qstate.quote.request,number:order.number||"",category:order.category||"",date:order.date||"",requester:order.requester||"",work:qstate.client.work||qstate.client.name,sourceOrderKey:`${qstate.client.id}|${order.date||""}|${order.number||""}|${order.description||""}`,driveFolderId:order.driveAssets?.folderId||"",items:(order.items?.length?order.items:[{number:1,quantity:1,unit:"UN",description:order.description||"",neededDate:order.delivery||""}]).map((item,index)=>({id:item.id||uid("item"),number:item.number||index+1,quantity:toNumber(item.quantity)||1,unit:item.unit||"UN",description:item.description||"",neededDate:item.neededDate||order.delivery||""}))};renderRequest();await saveNow();await searchDrive()});
     $("#quote-order-search").addEventListener("input",event=>filterOrders(event.target.value));
     const requestFields={"request-number":"number","request-category":"category","request-work":"work","request-requester":"requester","request-date":"date","request-needed":"neededDate"};Object.entries(requestFields).forEach(([id,field])=>$("#"+id).addEventListener("input",event=>{qstate.quote.request[field]=event.target.value;scheduleSave()}));
     document.addEventListener("click",event=>{

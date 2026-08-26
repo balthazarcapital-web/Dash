@@ -5,7 +5,8 @@
   let config=clients[savedClient]||clients.deterlimp||Object.values(clients)[0];
   let snapshot=config.snapshot||[];
   const colors=["#43b581","#ffb547","#7fa6ff","#9a8bf2","#8792a6"];
-  const state={clientId:config.id,data:[],filtered:[],period:"all",search:"",status:"",category:"",nf:"",paymentOnly:false,activeView:"overview",page:1,pageSize:8,categoryMode:"value",reportMode:"month",reportRows:[]};
+  const requestedView=new URLSearchParams(window.location.search).get("modo")==="cotacoes"?"quotes":"overview";
+  const state={clientId:config.id,data:[],filtered:[],period:"all",search:"",status:"",category:"",nf:"",paymentOnly:false,activeView:requestedView,page:1,pageSize:8,categoryMode:"value",reportMode:"month",reportRows:[]};
   const $=s=>document.querySelector(s);
   const $$=s=>[...document.querySelectorAll(s)];
   const money=new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:2});
@@ -129,5 +130,6 @@
   updateClientChrome();
   window.DeterlimpQuotes?.init({orders:()=>state.data,toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
   window.WorkManagement?.init({toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
+  if(requestedView==="quotes")window.DeterlimpQuotes?.enter();
   loadData();
 })();
