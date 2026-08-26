@@ -367,6 +367,17 @@ function json(res, status, payload) {
   res.writeHead(status, { "Content-Type": "application/json; charset=utf-8", "Content-Length": Buffer.byteLength(body), "Cache-Control": "no-store" });
   res.end(body);
 }
+
+async function supabaseSyncRecords(records) {
+  const url = process.env.SUPABASE_URL, key = process.env.SUPABASE_SERVICE_ROLE_KEY;
+  if (!url || !key || !records.length) return { synced: 0, configured: Boolean(url && key) };
+  const response = await fetch(`${url}/rest/v1/drive_sync_records?on_conflict=client_id,drive_id`, {
+    method: "POST", headers: { apikey: key, Authorization: `Bearer ${key}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" },
+    body: JSON.stringify(records)
+  });
+  if (!response.ok) throw new Error(`Supabase respondeu ${response.status}`);
+  return { synced: records.length, configured: true };
+}
 async function bodyBuffer(req, limit = 30 * 1024 * 1024) {
   const chunks = []; let size = 0;
   for await (const chunk of req) { size += chunk.length; if (size > limit) throw new Error("Arquivo maior que 30 MB"); chunks.push(chunk); }
@@ -1213,7 +1224,12 @@ export async function handleRequest(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const parts = url.pathname.split("/").filter(Boolean);
-    if (url.pathname === "/api/health") return json(res, 200, { ok: true, runtime: isVercel ? "vercel" : "local", driveConnected: driveConfigured(), formats: ["pdf", "xlsx", "xls", "csv", "txt", "png", "jpg", "jpeg"] });
+    if (url.pathname === "/api/health") return json(res, 200, { ok: true, runtime: isVercel ? "vercel" : "local", driveConnected: driveConfigured(), supabaseConnected: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY), formats: ["pdf", "xlsx", "xls", "csv", "txt", "png", "jpg", "jpeg"] });
+    if (url.pathname === "/api/sync/supabase" && req.method === "POST") {
+      const input = await bodyJson(req), clientId = String(input.clientId || "deterlimp");
+      const records = (input.records || []).map(row => ({ client_id: clientId, drive_id: String(row.driveId || row.id || ""), parent_drive_id: row.parentDriveId || null, record_type: row.recordType || "file", name: String(row.name || "Arquivo"), mime_type: row.mimeType || null, drive_url: row.driveUrl || null, payload: row.payload || row, content_hash: row.contentHash || null, drive_modified_at: row.modifiedTime || null })).filter(row => row.drive_id);
+      try { return json(res, 200, await supabaseSyncRecords(records)); } catch (error) { return json(res, 502, { error: error.message }); }
+    }
     if (url.pathname === "/api/base" && req.method === "GET") {
       const clientId = cleanName(url.searchParams.get("clientId")); const base = spreadsheetBases[clientId];
       if (!base) return json(res, 404, { error: "Base deste cliente não configurada." });
