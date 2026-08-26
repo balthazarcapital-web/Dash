@@ -402,6 +402,28 @@ async function saveWork(work) {
   await writeWorks(rows); return work;
 }
 
+function driveIdFromUrl(value) {
+  return String(value || "").match(/(?:\/d\/|\/folders\/)([-\w]+)/)?.[1] || "";
+}
+
+async function syncWorkDocumentsFromDrive(work) {
+  if (!driveConfigured()) throw new Error("Google Drive ainda não foi conectado no servidor.");
+  const folderIds = [...new Set((work.documents || []).map(row => String(row.driveUrl || "")).filter(url => /\/folders\//i.test(url)).map(driveIdFromUrl).filter(Boolean))];
+  if (!folderIds.length) throw new Error("Vincule uma pasta do Google Drive em um documento da obra antes de atualizar.");
+  const knownIds = new Set((work.documents || []).map(row => driveIdFromUrl(row.driveUrl)).filter(Boolean));
+  const files = [];
+  for (const folderId of folderIds) files.push(...await listDriveTree(folderId));
+  const uniqueFiles = [...new Map(files.filter(file => !file.mimeType?.endsWith("folder")).map(file => [file.id, file])).values()];
+  const newFiles = uniqueFiles.filter(file => !knownIds.has(file.id));
+  const importedAt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date());
+  for (const file of newFiles) {
+    work.documents.push({ id: uid("doc"), title: file.name || "Documento do Drive", required: false, status: "Aprovado", expiry: "", owner: "", notes: `Importado automaticamente do Google Drive em ${importedAt}.`, driveUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`, files: [] });
+  }
+  work.updatedAt = isoNow();
+  await saveWork(work);
+  return { work, added: newFiles.length, checked: uniqueFiles.length };
+}
+
 function newQuote(options = {}) {
   const work = String(options.work || options.clientName || "Deterlimp");
   return {
@@ -1374,6 +1396,7 @@ export async function handleRequest(req, res) {
       const work = await getOrCreateWork(clientId, url.searchParams.get("clientName") || "");
       if (parts.length === 3 && req.method === "GET") return json(res, 200, work);
       if (parts.length === 3 && req.method === "PUT") return json(res, 200, await saveWork(normalizeWork(await bodyJson(req), work)));
+      if (parts[3] === "documents" && parts[4] === "sync" && req.method === "POST") return json(res, 200, await syncWorkDocumentsFromDrive(work));
       if (parts[3] === "documents" && parts[4] && parts[5] === "files" && req.method === "POST") {
         const documentId = decodeURIComponent(parts[4]); const document = work.documents.find(row => row.id === documentId);
         if (!document) return json(res, 404, { error: "Documento não encontrado." });
