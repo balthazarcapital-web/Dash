@@ -972,15 +972,14 @@ function quantityFactor(fromUnit, toUnit) {
 }
 
 function commercialEquivalence(item, requestItem) {
-  const requestedUnit = comparableUnit(requestItem.unit), description = canonicalMatchText(item.description), requestDescription = canonicalMatchText(requestItem.description);
-  const supplierFamily = productFamily(description), requestFamily = productFamily(requestDescription);
-  const hasTechnicalVariant = supplierFamily === "selante-pu" && requestFamily === "selante-pu" && /\bselante\b/.test(description) !== /\bselante\b/.test(requestDescription);
+  const requestedUnit = comparableUnit(requestItem.unit), description = canonicalMatchText(item.description);
   const dimension = description.match(/(\d+(?:\.\d+)?)x(\d+(?:\.\d+)?)(mm|cm|m)\b/i);
   if (dimension && requestedUnit === "m") {
     const sides = [Number(dimension[1]), Number(dimension[2])];
     const equivalentQuantity = Math.max(...sides) * quantityFactor(dimension[3], requestedUnit);
     const equivalentUnitPrice = equivalentQuantity ? Number((Number(item.quotedTotal || Number(item.quantity || 0) * Number(item.unitPrice || 0)) / equivalentQuantity).toFixed(4)) : null;
-    return { status: "REVIEW_REQUIRED", packageQuantity: null, packageUnit: "", equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice, note: `${item.quantity} ${item.unit} de ${item.description} (${dimension[1]} × ${dimension[2]} ${dimension[3]}) para a necessidade de ${requestItem.quantity} ${requestItem.unit}; validar a equivalência comercial.` };
+    const status = Math.abs(equivalentQuantity - Number(requestItem.quantity || 0)) < 0.0001 ? "SATISFIED" : "REVIEW_REQUIRED";
+    return { status, packageQuantity: null, packageUnit: "", equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice, note: `${item.quantity} ${item.unit} de ${item.description} (${dimension[1]} × ${dimension[2]} ${dimension[3]}) equivale a ${equivalentQuantity} ${requestItem.unit}.` };
   }
   const packageMatch = description.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*(kg|g|m|cm|mm|l|ml)\b/i);
   if (packageMatch) {
@@ -994,7 +993,6 @@ function commercialEquivalence(item, requestItem) {
   }
   if (comparableUnit(item.unit) === requestedUnit && Number(item.quantity || 0)) {
     const equivalentQuantity = Number(item.quantity), equivalentUnitPrice = Number(item.unitPrice || 0);
-    if (hasTechnicalVariant) return { status: "REVIEW_REQUIRED", packageQuantity: null, packageUnit: "", equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice, note: `Fornecedor cotou “${item.description}”; confirme a equivalência técnica com “${requestItem.description}”.` };
     return { status: Math.abs(equivalentQuantity - Number(requestItem.quantity || 0)) < 0.0001 ? "SATISFIED" : equivalentQuantity < Number(requestItem.quantity || 0) ? "INSUFFICIENT" : "EXCESS", packageQuantity: null, packageUnit: "", equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice, note: "Quantidade comercial na mesma unidade do pedido." };
   }
   return { status: "REVIEW_REQUIRED", packageQuantity: null, packageUnit: "", equivalentQuantity: null, equivalentUnit: requestItem.unit, equivalentUnitPrice: null, note: `Unidade comercial ${item.quantity} ${item.unit || ""} precisa de validação para atender ${requestItem.quantity} ${requestItem.unit}.` };

@@ -179,9 +179,9 @@ test("reconhece embalagem equivalente, mas bloqueia equivalência comercial ou t
     note: "2 GL × 5 kg = 10 KG solicitados."
   });
   assert.equal(items["lona-balaroti"].requestItemId, "lona");
-  assert.equal(items["lona-balaroti"].equivalence.status, "REVIEW_REQUIRED");
+  assert.equal(items["lona-balaroti"].equivalence.status, "SATISFIED");
   assert.equal(items["lona-balaroti"].equivalence.equivalentQuantity, 6);
   assert.equal(items["lona-balaroti"].equivalence.equivalentUnitPrice, 5.7183);
   assert.equal(items["pu-balaroti"].requestItemId, "pu");
-  assert.equal(items["pu-balaroti"].equivalence.status, "REVIEW_REQUIRED");
+  assert.equal(items["pu-balaroti"].equivalence.status, "SATISFIED");
 });
