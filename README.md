@@ -18,7 +18,7 @@ O terminal precisa permanecer aberto durante o uso. O serviço local é necessá
 
 O dashboard tenta ler a aba `Respostas ao formulário 1` da planilha configurada em `data.js`. Se a planilha não permitir leitura pública pelo endpoint CSV do Google, a interface usa automaticamente o retrato local incluído no mesmo arquivo.
 
-O seletor **Cliente ativo**, no menu lateral, alterna entre Deterlimp, Carlos Bezerra, Clínica Gianna e Dr. Clovis CMFS. Dados, filtros, relatórios e históricos de cotações permanecem separados por cliente. Carlos Bezerra e Clínica Gianna sincronizam diretamente; Dr. Clovis usa o retrato local quando a exportação pública da planilha está restrita.
+O seletor **Cliente ativo**, no menu lateral, alterna entre Deterlimp, Carlos Bezerra, Clínica Gianna e Dr. Clovis CMSF. Dados, filtros, relatórios e históricos de cotações permanecem separados por cliente. Carlos Bezerra e Clínica Gianna sincronizam diretamente; Dr. Clovis usa o retrato local quando a exportação pública da planilha está restrita.
 
 Para sincronização direta, publique a planilha para leitura ou substitua a URL por um endpoint autenticado. O botão **Atualizar base** tenta uma nova leitura; **Exportar** baixa os registros filtrados em CSV.
 

@@ -58,7 +58,7 @@ window.DASHBOARD_CLIENTS = {
     snapshotDate: "2026-08-19T12:00:00-03:00", snapshot: []
   },
   dr_clovis_cmfs: {
-    id: "dr_clovis_cmfs", name: "Dr. Clovis CMFS", shortName: "DR. CLOVIS CMFS", work: "Dr. Clovis CMFS",
+    id: "dr_clovis_cmfs", name: "Dr. Clovis CMSF", shortName: "DR. CLOVIS CMSF", work: "Dr. Clovis CMSF",
     spreadsheetId: "1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU", sheetGid: "1856239408",
     spreadsheetUrl: "https://docs.google.com/spreadsheets/d/1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU/edit",
     snapshotDate: "2026-08-19T12:01:09-03:00",
