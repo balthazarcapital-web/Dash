@@ -581,11 +581,12 @@ function compactTextRequestItems(text) {
 function parseRequest(extraction) {
   const text = extraction.text || "";
   const n = norm(text);
+  const extractedField = value => String(value || "").split("|").map(part => part.trim()).filter(Boolean).join(" ").replace(/\s+/g, " ").trim();
   const number = text.match(/N[°ºO]?\s*[:.-]?\s*(\d{1,5})/i)?.[1] || "";
   const date = text.match(/DATA\s*[:.-]?\s*(\d{2}\/\d{2}\/\d{4})/i)?.[1] || "";
-  const category = text.match(/(?:AREA|ÁREA)\s+DE\s+SOLICITA(?:CAO|ÇÃO)\s*[:.-]?\s*([^\n]+)/i)?.[1]?.trim() || "";
+  const category = extractedField(text.match(/(?:AREA|ÁREA)\s+DE\s+SOLICITA(?:CAO|ÇÃO)\s*[:.-]?\s*([^\n]+)/i)?.[1]);
   const requester = text.match(/SOLICIT(?:ADO|DO)\s+POR\s*:?\s*\n?\s*([A-ZÁ-Ú ]{3,40})/i)?.[1]?.trim() || "";
-  const costCenter = text.match(/CENTRO\s+DE\s+CUSTO\s*[:.-]?\s*([^\n]+)/i)?.[1]?.trim() || "DETERLIMP";
+  const costCenter = extractedField(text.match(/CENTRO\s+DE\s+CUSTO\s*[:.-]?\s*([^\n]+)/i)?.[1]) || "DETERLIMP";
   const items = tableRequestItems(extraction.tables);
   const normalizedCategory = category
     ? category[0].toUpperCase() + category.slice(1).toLowerCase()
@@ -1599,8 +1600,8 @@ function classifyDriveFile(file) {
   const name = norm(file.name);
   if (/^(03|3)\b/.test(name) || name.includes("mapa de cotacao")) return "map";
   if (/^(04|4)\b/.test(name) || name.includes("ordem de compra")) return "purchase-order";
+  if (/^(02|2)\b/.test(name) || name.includes("orcamento") || name.includes("proposta") || name.includes("cotacao")) return "quote";
   if (/^(01|1)\b/.test(name) || /pedido|solicitacao|requisicao|requisito|material solicitado|lista de materiais/.test(name)) return "request";
-  if (/^(02|2)\b/.test(name) || name.includes("orcamento") || name.includes("proposta")) return "quote";
   return "unknown";
 }
 
