@@ -71,6 +71,9 @@
   async function load(){state.loading=true;setSaveStatus("Carregando...");try{state.work=await api(`/api/works/${encodeURIComponent(state.client.id)}?clientName=${encodeURIComponent(state.client.name)}`);render();setSaveStatus("Salvo localmente")}catch(error){setSaveStatus("Serviço indisponível",true);state.toast(error.message)}finally{state.loading=false}}
   async function uploadFile(documentId,input){const file=input.files?.[0];if(!file)return;if(file.size>30*1024*1024){state.toast("Arquivo maior que 30 MB");input.value="";return}const form=new FormData();form.set("file",file);setSaveStatus("Enviando arquivo...");try{state.work=await api(`/api/works/${encodeURIComponent(state.client.id)}/documents/${encodeURIComponent(documentId)}/files`,{method:"POST",body:form});renderDocuments();renderExecutive();setSaveStatus("Arquivo salvo localmente");state.toast("Documento anexado")}catch(error){setSaveStatus("Erro no anexo",true);state.toast(error.message)}}
   function bind(){
+    // Reaplica as barras depois que filtros/categorias redesenham a tabela.
+    document.addEventListener("change",event=>{if(event.target.id==="budget-category"||event.target.id==="budget-subcategory")requestAnimationFrame(renderBudgetProgress)});
+    document.addEventListener("click",event=>{if(event.target.closest("[data-budget-group]"))requestAnimationFrame(renderBudgetProgress)});
     $$('[data-work-tab]').forEach(button=>button.addEventListener("click",()=>showTab(button.dataset.workTab)));
     $("#work-document-search").addEventListener("input",event=>{const query=event.target.value.trim().toLowerCase();$$('[data-document]').forEach(card=>card.hidden=Boolean(query&&!card.dataset.documentSearch.includes(query)))});
     $("#work-details-toggle").addEventListener("click",()=>{const form=$("#work-details-form"),hidden=!form.hidden;form.hidden=!hidden;$("#work-details-summary").hidden=hidden;$("#work-details-toggle").textContent=hidden?"Concluir":"Editar"});
