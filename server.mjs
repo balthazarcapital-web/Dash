@@ -889,6 +889,13 @@ function reconcile(quote) {
   return quote;
 }
 
+function relatedSupplierItem(supplier, requestItem) {
+  const matches = (supplier.items || []).filter(item => item.requestItemId === requestItem.id);
+  if (matches.length <= 1) return matches[0];
+  const quotedTotal = matches.reduce((sum, item) => sum + Number(item.quotedTotal || Number(item.quantity || 0) * Number(item.unitPrice || 0)), 0);
+  return { ...matches[0], description: matches.map(item => item.description).join(" • "), quotedTotal, unitPrice: quotedTotal / Math.max(1, Number(requestItem.quantity || 1)), quantity: Number(requestItem.quantity || 1), confidence: Math.min(...matches.map(item => Number(item.confidence || 0))) };
+}
+
 function excelCol(index) { let result = ""; for (let n = index; n; n = Math.floor((n - 1) / 26)) result = String.fromCharCode(65 + (n - 1) % 26) + result; return result; }
 async function buildWorkbookFromDriveTemplate(quote, targetPath) {
   const template = quote.request.mapTemplate;
@@ -925,7 +932,7 @@ async function buildWorkbookFromDriveTemplate(quote, targetPath) {
     const row = 7 + index;
     const values = [requestItem.number || index + 1, Number(requestItem.quantity || 0), requestItem.unit || "UN", requestItem.description || ""];
     suppliers.forEach(supplier => {
-      const match = (supplier.items || []).find(item => item.requestItemId === requestItem.id);
+      const match = relatedSupplierItem(supplier, requestItem);
       const unit = Number(match?.unitPrice || 0); values.push(unit || "", unit ? unit * Number(requestItem.quantity || 0) : "");
     });
     while (values.length < 10) values.push("", "");
@@ -938,7 +945,7 @@ async function buildWorkbookFromDriveTemplate(quote, targetPath) {
   labels.forEach((label, index) => { sheet[`A${summaryStart + index}`] = styleCell(`A${24 + index}`, label); });
   suppliers.forEach((supplier, index) => {
     const column = ["E","G","I"][index];
-    const itemTotal = (quote.request.items || []).reduce((sum, requestItem) => { const match = (supplier.items || []).find(item => item.requestItemId === requestItem.id); return sum + Number(match?.unitPrice || 0) * Number(requestItem.quantity || 0); }, 0);
+    const itemTotal = (quote.request.items || []).reduce((sum, requestItem) => { const match = relatedSupplierItem(supplier, requestItem); return sum + Number(match?.quotedTotal || Number(match?.unitPrice || 0) * Number(requestItem.quantity || 0)); }, 0);
     const freight = supplier.freightIncluded ? 0 : Number(supplier.freight || 0), discount = Number(supplier.discount || 0), other = Number(supplier.otherCharges || 0);
     [itemTotal, freight + other, supplier.payment || "Não informado", discount, itemTotal + freight + other - discount].forEach((value, rowIndex) => { sheet[`${column}${summaryStart + rowIndex}`] = styleCell(`E${24 + rowIndex}`, value); });
     sheet[`${column}${summaryStart + 6}`] = styleCell("E30", supplier.notes || [supplier.delivery && `Entrega: ${supplier.delivery}`, supplier.validity && `Validade: ${supplier.validity}`].filter(Boolean).join(" • "));
@@ -969,7 +976,7 @@ async function buildWorkbookNode(quote, targetPath) {
     const row = sheet.addRow({ item: requestItem.number || index + 1, description: requestItem.description, unit: requestItem.unit || "UN", quantity: Number(requestItem.quantity || 0) });
     const totalCells = [];
     suppliers.forEach((supplier, supplierIndex) => {
-      const match = (supplier.items || []).find(item => item.requestItemId === requestItem.id);
+      const match = relatedSupplierItem(supplier, requestItem);
       const unitColumn = 5 + supplierIndex * 2, totalColumn = unitColumn + 1;
       if (match && Number(match.unitPrice) > 0) { row.getCell(unitColumn).value = Number(match.unitPrice); row.getCell(totalColumn).value = { formula: `${row.getCell(4).address}*${row.getCell(unitColumn).address}` }; totalCells.push(row.getCell(totalColumn).address); }
     });
@@ -1019,7 +1026,7 @@ async function buildWorkbook(quote, targetPath) {
     const row = itemStart + index;
     sheet.getRange(`A${row}:D${row}`).values = [[requestItem.number || index + 1, requestItem.quantity, requestItem.unit || "UN", requestItem.description]];
     suppliers.forEach((supplier, supplierIndex) => {
-      const qItem = supplier.items.find(item => item.requestItemId === requestItem.id);
+      const qItem = relatedSupplierItem(supplier, requestItem);
       const unitCol = excelCol(5 + supplierIndex * 2), totalCol = excelCol(6 + supplierIndex * 2);
       if (qItem?.unitPrice > 0) {
         sheet.getRange(`${unitCol}${row}`).values = [[qItem.unitPrice]];
