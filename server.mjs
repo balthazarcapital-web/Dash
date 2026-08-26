@@ -378,6 +378,20 @@ async function supabaseSyncRecords(records) {
   if (!response.ok) throw new Error(`Supabase respondeu ${response.status}`);
   return { synced: records.length, configured: true };
 }
+async function updateOrderInSheet(clientId, order) {
+  const base = spreadsheetBases[cleanName(clientId)]; if (!base) throw new Error("Base deste cliente não configurada.");
+  const read = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values/${encodeURIComponent("A:Z")}?majorDimension=ROWS`);
+  const payload = await read.json(); const rows = payload.values || [], headers = rows.findIndex(row => row.some(cell => /status/i.test(String(cell))) && row.some(cell => /descri[cç][aã]o/i.test(String(cell))));
+  if (headers < 0) throw new Error("Não encontrei os cabeçalhos da planilha.");
+  const header = rows[headers].map(cell => norm(cell)); const col = name => header.findIndex(cell => cell === norm(name) || cell.includes(norm(name)));
+  const numberCol = col("Nº do Pedido") >= 0 ? col("Nº do Pedido") : col("Numero do Pedido"), descriptionCol = col("Descrição"), statusCol = col("Status");
+  const rowIndex = rows.findIndex((row, index) => index > headers && ((order.number && String(row[numberCol] || "").replace(/^0+/, "") === String(order.number).replace(/^0+/, "")) || (!order.number && norm(row[descriptionCol]) === norm(order.description))));
+  if (rowIndex < 0) throw new Error("Não encontrei esse pedido na planilha.");
+  const updates = [{ range: `${String.fromCharCode(65 + statusCol)}${rowIndex + 1}`, values: [[order.status || ""]]}];
+  for (const [field, label] of [["supplier","Fornecedor"],["delivery","Data da Entrega do Material"],["invoice","Nota Fiscal"],["payment","Pagamento"]]) { const index = col(label); if (index >= 0 && order[field] !== undefined) updates.push({ range: `${String.fromCharCode(65 + index)}${rowIndex + 1}`, values: [[order[field] || ""]] }); }
+  const write = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values:batchUpdate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: updates }) });
+  if (!write.ok) throw new Error(`Google Sheets respondeu ${write.status}.`); return { ok: true, row: rowIndex + 1, updated: updates.length };
+}
 async function bodyBuffer(req, limit = 30 * 1024 * 1024) {
   const chunks = []; let size = 0;
   for await (const chunk of req) { size += chunk.length; if (size > limit) throw new Error("Arquivo maior que 30 MB"); chunks.push(chunk); }
@@ -1263,6 +1277,9 @@ export async function handleRequest(req, res) {
       const input = await bodyJson(req), clientId = String(input.clientId || "deterlimp");
       const records = (input.records || []).map(row => ({ client_id: clientId, drive_id: String(row.driveId || row.id || ""), parent_drive_id: row.parentDriveId || null, record_type: row.recordType || "file", name: String(row.name || "Arquivo"), mime_type: row.mimeType || null, drive_url: row.driveUrl || null, payload: row.payload || row, content_hash: row.contentHash || null, drive_modified_at: row.modifiedTime || null })).filter(row => row.drive_id);
       try { return json(res, 200, await supabaseSyncRecords(records)); } catch (error) { return json(res, 502, { error: error.message }); }
+    }
+    if (url.pathname === "/api/order-update" && req.method === "PUT") {
+      try { const input = await bodyJson(req); return json(res, 200, await updateOrderInSheet(input.clientId, input.order)); } catch (error) { return json(res, 502, { error: error.message }); }
     }
     if (url.pathname === "/api/base" && req.method === "GET") {
       const clientId = cleanName(url.searchParams.get("clientId")); const base = spreadsheetBases[clientId];
