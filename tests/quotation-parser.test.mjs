@@ -180,6 +180,8 @@ test("reconhece embalagem equivalente, mas bloqueia equivalência comercial ou t
   });
   assert.equal(items["lona-balaroti"].requestItemId, "lona");
   assert.equal(items["lona-balaroti"].equivalence.status, "REVIEW_REQUIRED");
+  assert.equal(items["lona-balaroti"].equivalence.equivalentQuantity, 6);
+  assert.equal(items["lona-balaroti"].equivalence.equivalentUnitPrice, 5.7183);
   assert.equal(items["pu-balaroti"].requestItemId, "pu");
   assert.equal(items["pu-balaroti"].equivalence.status, "REVIEW_REQUIRED");
 });

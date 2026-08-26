@@ -950,7 +950,7 @@ function similarity(a, b) {
 }
 
 function comparableUnit(unit) {
-  return norm(unit).replace(/^(?:kgs?|quilo(?:s)?)$/, "kg").replace(/^(?:gr?|grama(?:s)?)$/, "g").replace(/^(?:me|mt|ml|m)$/, "m").replace(/^(?:cm|centimetro(?:s)?)$/, "cm").replace(/^(?:mm|milimetro(?:s)?)$/, "mm").replace(/^(?:pc|un|und|pca)$/, "un");
+  return norm(unit).replace(/^(?:kgs?|quilo(?:s)?)$/, "kg").replace(/^(?:gr?|grama(?:s)?)$/, "g").replace(/^(?:me|mt|ml|m|metro(?:s)?)$/, "m").replace(/^(?:cm|centimetro(?:s)?)$/, "cm").replace(/^(?:mm|milimetro(?:s)?)$/, "mm").replace(/^(?:pc|un|und|pca)$/, "un");
 }
 
 function productFamily(value) {
@@ -979,7 +979,8 @@ function commercialEquivalence(item, requestItem) {
   if (dimension && requestedUnit === "m") {
     const sides = [Number(dimension[1]), Number(dimension[2])];
     const equivalentQuantity = Math.max(...sides) * quantityFactor(dimension[3], requestedUnit);
-    return { status: "REVIEW_REQUIRED", packageQuantity: null, packageUnit: "", equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice: null, note: `${item.quantity} ${item.unit} de ${item.description} (${dimension[1]} × ${dimension[2]} ${dimension[3]}) para a necessidade de ${requestItem.quantity} ${requestItem.unit}; validar a equivalência comercial.` };
+    const equivalentUnitPrice = equivalentQuantity ? Number((Number(item.quotedTotal || Number(item.quantity || 0) * Number(item.unitPrice || 0)) / equivalentQuantity).toFixed(4)) : null;
+    return { status: "REVIEW_REQUIRED", packageQuantity: null, packageUnit: "", equivalentQuantity, equivalentUnit: requestItem.unit, equivalentUnitPrice, note: `${item.quantity} ${item.unit} de ${item.description} (${dimension[1]} × ${dimension[2]} ${dimension[3]}) para a necessidade de ${requestItem.quantity} ${requestItem.unit}; validar a equivalência comercial.` };
   }
   const packageMatch = description.match(/(?:^|\s)(\d+(?:\.\d+)?)\s*(kg|g|m|cm|mm|l|ml)\b/i);
   if (packageMatch) {
