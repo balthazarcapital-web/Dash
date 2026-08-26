@@ -15,15 +15,6 @@
   let webWorksPromise;
   async function webWorks(){if(!webWorksPromise)webWorksPromise=fetch("works-data.json?v=1.1.6").then(response=>{if(!response.ok)throw new Error("Dados das obras indisponíveis");return response.json()});return webWorksPromise}
   async function api(url,options={}){
-    const workMatch=String(url).match(/^\/api\/works\/([^/?]+)(?:\?|$)/);
-    if(window.DASH_WEB_DEMO&&workMatch){
-      const clientId=decodeURIComponent(workMatch[1]),key=`dash-work-${window.DASH_VERSION||"1.1.6"}-${clientId}`;
-      if((options.method||"GET").toUpperCase()==="PUT"){
-        const saved=JSON.parse(options.body||"{}");localStorage.setItem(key,JSON.stringify(saved));return saved;
-      }
-      const local=localStorage.getItem(key);if(local)return JSON.parse(local);
-      const seed=(await webWorks()).find(row=>row.clientId===clientId);if(!seed)throw new Error("Obra não encontrada");return structuredClone(seed);
-    }
     const response=await fetch(url,options);const payload=await response.json().catch(()=>({}));if(!response.ok)throw new Error(payload.error||"Não foi possível concluir a operação.");return payload
   }
   function options(values,current){return values.map(value=>`<option ${value===current?"selected":""}>${escapeHtml(value)}</option>`).join("")}
