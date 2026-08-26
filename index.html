@@ -25,6 +25,7 @@
         <a class="nav-link active" href="#overview" data-section="overview"><span data-icon="grid"></span>Visão geral</a>
         <a class="nav-link" href="#work" data-section="work"><span data-icon="building"></span>Obras</a>
         <a class="nav-link" href="#orders" data-section="orders"><span data-icon="clipboard"></span>Pedidos <b id="nav-order-count">0</b></a>
+        <a class="nav-link" href="#rentals" data-section="rentals"><span data-icon="calendar"></span>Locações <b id="nav-rental-count">0</b></a>
         <a class="nav-link" href="#quotes" data-section="quotes"><span data-icon="layers"></span>Cotações <b id="nav-quote-count">0</b></a>
         <a class="nav-link" href="#fiscal" data-section="fiscal"><span data-icon="receipt"></span>Notas fiscais <b id="nav-nf-count">0</b></a>
         <a class="nav-link" href="#financial" data-section="financial"><span data-icon="wallet"></span>Financeiro</a>
@@ -129,6 +130,13 @@
           <div class="table-footer"><span id="table-summary">0 pedidos</span><div class="pagination"><button id="prev-page" aria-label="Página anterior">←</button><span id="page-label">1 / 1</span><button id="next-page" aria-label="Próxima página">→</button></div></div>
         </section>
       </div>
+
+      <section class="content rentals-view" id="rentals" hidden>
+        <header class="work-hero"><div><p class="eyebrow">CONTROLE DE LOCAÇÕES</p><h2>Materiais alugados da obra</h2><p>Acompanhe envio, trocas, vencimentos e devoluções em um só lugar.</p></div><button class="button button-primary" id="rental-new">+ Nova locação</button></header>
+        <div class="rental-kpis"><article><span>ATIVAS</span><strong id="rental-active-count">0</strong></article><article><span>VENCENDO EM 7 DIAS</span><strong id="rental-due-count">0</strong></article><article><span>DEVOLUÇÕES PENDENTES</span><strong id="rental-return-count">0</strong></article></div>
+        <section class="panel rental-form" id="rental-form" hidden><div class="panel-header"><div><p class="eyebrow">NOVO CONTROLE</p><h3>Registrar locação</h3></div></div><div class="form-grid"><label class="field-label">Material/equipamento<input id="rental-item" placeholder="Ex.: Andaime tubular"></label><label class="field-label">Fornecedor<input id="rental-supplier" placeholder="Empresa locadora"></label><label class="field-label">Data de envio<input id="rental-sent" type="date"></label><label class="field-label">Vencimento<input id="rental-due" type="date"></label><label class="field-label">Próxima troca<input id="rental-exchange" type="date"></label><label class="field-label">Valor mensal (R$)<input id="rental-value" type="number" step="0.01" placeholder="0,00"></label></div><label class="field-label rental-notes">Observações<textarea id="rental-notes" class="quote-textarea" placeholder="Local na obra, contato, condições da troca..."></textarea></label><div class="step-actions"><button class="button button-secondary" id="rental-cancel">Cancelar</button><button class="button button-primary" id="rental-save">Salvar locação</button></div></section>
+        <section class="panel"><div class="panel-header"><div><p class="eyebrow">ACOMPANHAMENTO</p><h3>Locações cadastradas</h3></div><span class="panel-total" id="rental-summary">0 registros</span></div><div class="rental-list" id="rental-list"></div></section>
+      </section>
 
       <section class="content work-view" id="work" hidden>
         <header class="work-hero">
