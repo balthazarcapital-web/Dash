@@ -849,11 +849,12 @@ function reconcile(quote) {
       });
     }
     for (const item of supplier.items || []) {
-      let best = { score: 0, item: null };
+      let best = { score: -1, item: null };
       const lockedRequest = item.lockedMatch && item.requestItemId ? requestItems.find(row => row.id === item.requestItemId) : null;
       if (lockedRequest) best = { score: 1, item: lockedRequest };
+      const compositeRequest = requestItems.length === 1 || requestItems.length < (supplier.items || []).length;
       for (const requestItem of lockedRequest ? [] : requestItems) {
-        if (matched.has(requestItem.id)) continue;
+        if (matched.has(requestItem.id) && !compositeRequest) continue;
         let score = similarity(item.description, requestItem.description);
         if (item.quantity && requestItem.quantity && Math.abs(item.quantity - requestItem.quantity) < 0.0001) score += 0.12;
         const comparableUnit = unit => norm(unit).replace(/^(?:me|mt|ml|m)$/, "m").replace(/^(?:pc|un|und|pca)$/, "un");
@@ -862,8 +863,8 @@ function reconcile(quote) {
         if (score > best.score) best = { score, item: requestItem };
       }
       if (requestItems.length === 1 && supplier.items.length === 1) best = { score: Math.max(best.score, 0.88), item: requestItems[0] };
-      item.requestItemId = best.score >= 0.42 ? best.item?.id || "" : "";
-      item.confidence = Number(best.score.toFixed(2));
+      item.requestItemId = (compositeRequest && best.item) || best.score >= 0.42 ? best.item?.id || "" : "";
+      item.confidence = Number((compositeRequest && best.item ? Math.max(best.score, 0.72) : best.score).toFixed(2));
       if (!item.requestItemId) {
         divergences.push({ id: `${supplier.id}:${item.id}:unmatched`, supplierId: supplier.id, itemId: item.id, type: item.extra ? "extra" : "unmatched", severity: item.extra ? "warning" : "blocking", message: item.extra ? `Item extra de ${supplier.name || "fornecedor"}: “${item.description}”.` : `Item “${item.description}” não foi relacionado ao pedido.`, resolved: Boolean(item.extra) });
         continue;
