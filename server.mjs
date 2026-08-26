@@ -617,6 +617,32 @@ function textQuoteItems(text) {
   // Este leitor une as linhas até o marcador de desconto 0,00 e preserva os
   // valores unitário/total que aparecem imediatamente após a unidade.
   if (/BALAROTI|SAC BALAROTI/i.test(text)) {
+    // Alguns PDFs recentes da Balaroti removem os espaços entre tamanho/marca,
+    // quantidade, unidade e preço. Ex.: "5kgSuvinil2 GL234,91469,82".
+    const compactPattern = /^(.*?)(\d+(?:[.,]\d+)?)\s+(PC|UN|TB|KT|BR|PR|SC|CX|RL|GL)\s*(\d{1,3}(?:\.\d{3})*,\d{2})(\d{1,3}(?:\.\d{3})*,\d{2})(?:\d+)?\s*-\s*(.*)$/i;
+    for (let index = 0; index < lines.length; index++) {
+      const compact = lines[index].match(compactPattern);
+      if (!compact) continue;
+      let description = compact[6].replace(/0,00\s*$/, "").trim();
+      if (/^\d+\s*-/.test(description) && lines[index + 1]) description += ` ${lines[index + 1].trim()}`;
+      addItem(description, compact[2], compact[3].toUpperCase(), compact[4], compact[5], 0.96, splitTrailingBrand(compact[1]).brand);
+    }
+    // Quando o código/descrição fica na linha seguinte, reaproveita os valores
+    // da linha compacta e une até o marcador de desconto.
+    const compactHeader = /^(.*?)(\d+(?:[.,]\d+)?)\s+(PC|UN|TB|KT|BR|PR|SC|CX|RL|GL)\s*(\d{1,3}(?:\.\d{3})*,\d{2})(\d{1,3}(?:\.\d{3})*,\d{2})\s*$/i;
+    for (let index = 0; index < lines.length; index++) {
+      const header = lines[index].match(compactHeader);
+      if (!header) continue;
+      const parts = [];
+      while (index + 1 < lines.length && parts.length < 5) {
+        const next = lines[++index];
+        if (/^0,00$/.test(next)) break;
+        parts.push(next);
+      }
+      const description = parts.join(" ").replace(/^\d+\s*-\s*/, "").trim();
+      if (description) addItem(description, header[2], header[3].toUpperCase(), header[4], header[5], 0.96, splitTrailingBrand(header[1]).brand);
+    }
+    if (items.length) return items.map(({ _key, ...item }) => item);
     const headerPattern = /^(.*?)(\d+(?:[.,]\d+)?)\s+(PC|UN|TB|KT|BR|PR|SC|CX)\s*(\d{1,3}(?:\.\d{3})*,\d{2})(\d{1,3}(?:\.\d{3})*,\d{2})(.*)$/i;
     for (let index = 0; index < lines.length; index++) {
       const match = lines[index].match(headerPattern);
@@ -721,7 +747,7 @@ function parseSupplier(extraction, current = {}) {
   if (!delivery && /entrega\s+imediato[\s\S]{0,160}?1\s+dia\s+[uú]til/i.test(text)) delivery = "Imediato ou até 1 dia útil após o pagamento";
   let validity = text.match(/VALIDADE(?:\s+(?:DESTE|DO)\s+OR[CÇ]AMENTO)?\s*:?\s*([^\n]+)/i)?.[1]?.trim() || text.match(/V[AÁ]LIDO\s+AT[EÉ]\s*:?\s*([^\n]+)/i)?.[1]?.trim() || current.validity || "";
   if (/eletrorastro/i.test(text)) validity = text.match(/Validade\s*:\s*\d+\s+Dias?\s*\((\d{2}\/\d{2}\/\d{4})\)/i)?.[1] || validity;
-  const balarotiSummary = text.match(/Frete:\s*Total\s+do\s+Or[çc]amento:\s*R\$\s*([\d.]+,\d{2})\s*R\$\s*([\d.]+,\d{2})/i);
+  const balarotiSummary = text.match(/Frete:\s*(?:Total\s+do\s+Or[çc]amento:\s*)?(?:R\$\s*)?([\d.]+,\d{2})[\s\r\n]+(?:Total\s+do\s+Or[çc]amento:\s*)?R\$\s*([\d.]+,\d{2})/i);
   const nicheleCharges = text.match(/Valor\s+TC\s+Out\.\s*desp\.\s*man\s*([\d.]+,\d{2})\s+([\d.]+,\d{2})/i);
   const parsedFreight = balarotiSummary ? money(balarotiSummary[1]) : (freightIncluded ? 0 : money(freightMatch?.[1]));
   const otherCharges = nicheleCharges ? money(nicheleCharges[2]) : money(text.match(/(?:OUTRAS|OUTRAS\s+DESPESAS|ACR[EÉ]SCIMOS)\s*:?\s*(?:R\$\s*)?([\d.]+,\d{2})/i)?.[1]);
