@@ -37,6 +37,9 @@
 #wr-preview .wr-values b{display:block}
 #wr-preview .wr-progress{height:7px;background:#e7ebf0;margin:14px 0;border-radius:9px;overflow:hidden}
 #wr-preview .wr-progress i{display:block;height:100%;background:#9fb44b}
+#wr-preview .wr-item.over-budget h2{color:#b3433d}
+#wr-preview .wr-item.over-budget .wr-values span:last-child b{color:#b3433d}
+#wr-preview .wr-progress.over i{background:#d8564c}
 #wr-preview table{min-width:0;width:100%;table-layout:fixed}
 #wr-preview td,#wr-preview th{font-size:11px;overflow-wrap:anywhere;padding:9px 5px}
 #wr-preview td small{display:block;color:#607086;font-size:10px;margin-top:5px}
