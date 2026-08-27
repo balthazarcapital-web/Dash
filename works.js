@@ -67,7 +67,43 @@
   async function uploadFile(documentId,input){const file=input.files?.[0];if(!file)return;if(file.size>30*1024*1024){state.toast("Arquivo maior que 30 MB");input.value="";return}const form=new FormData();form.set("file",file);setSaveStatus("Enviando arquivo...");try{state.work=await api(`/api/works/${encodeURIComponent(state.client.id)}/documents/${encodeURIComponent(documentId)}/files`,{method:"POST",body:form});renderDocuments();renderExecutive();setSaveStatus("Arquivo salvo localmente");state.toast("Documento anexado")}catch(error){setSaveStatus("Erro no anexo",true);state.toast(error.message)}}
   async function syncDocuments(){if(!state.work)return;const button=$("#work-sync-documents"),original=button?.textContent;if(button){button.disabled=true;button.textContent="Verificando Drive..."}setSaveStatus("Verificando documentos no Drive...");try{const result=await api(`/api/works/${encodeURIComponent(state.client.id)}/documents/sync`,{method:"POST"});state.work=result.work;renderDocuments();renderExecutive();setSaveStatus(`Drive verificado • ${result.checked} arquivo(s)`);state.toast(result.added?`${result.added} novo(s) documento(s) adicionado(s) do Drive`:"Nenhum documento novo no Drive")}catch(error){setSaveStatus("Erro ao verificar Drive",true);state.toast(error.message)}finally{if(button){button.disabled=false;button.textContent=original||"Atualizar do Drive"}}}
   function closeBudgetItemDrawer(){const backdrop=$("#budget-item-backdrop"),drawer=$("#budget-item-drawer");if(drawer)drawer.classList.remove("open");if(backdrop)setTimeout(()=>backdrop.hidden=true,220)}
-  function openBudgetItemDrawer(itemId){const budget=state.work?.budget,item=budget?.items?.find(row=>row.id===itemId);if(!item)return;let backdrop=$("#budget-item-backdrop"),drawer=$("#budget-item-drawer");if(!backdrop){document.body.insertAdjacentHTML("beforeend",'<div class="budget-item-backdrop" id="budget-item-backdrop" hidden></div><aside class="budget-item-drawer" id="budget-item-drawer" aria-hidden="true"><div class="budget-item-drawer-head"><div><p class="eyebrow">ITEM DO ORÇAMENTO</p><h3></h3></div><button class="icon-button" data-close-budget-drawer aria-label="Fechar">×</button></div><div class="budget-item-drawer-content"></div></aside>');backdrop=$("#budget-item-backdrop");drawer=$("#budget-item-drawer");backdrop.addEventListener("click",closeBudgetItemDrawer);drawer.querySelector("[data-close-budget-drawer]").addEventListener("click",closeBudgetItemDrawer)}const actuals=(budget.actuals||[]).filter(row=>row.itemId===itemId).sort((a,b)=>String(b.date).localeCompare(String(a.date)));drawer.querySelector("h3").textContent=`${item.code} — ${item.description}`;drawer.querySelector(".budget-item-drawer-content").innerHTML=`<div class="budget-item-drawer-summary"><div><span>Planejado</span><strong>${money(item.plannedTotal)}</strong></div><div><span>Realizado</span><strong>${money(actuals.reduce((sum,row)=>sum+Number(row.value||0),0))}</strong></div><div><span>Pedidos atribuídos</span><strong>${actuals.filter(row=>row.source==="Pedido"||row.orderRef).length}</strong></div></div><div class="budget-item-orders"><h4>Pedidos atribuídos a este item</h4>${actuals.length?actuals.map(row=>`<article><div><strong>${escapeHtml(row.description||"Lançamento do orçamento")}</strong><small>${escapeHtml(row.date||"")}${row.reference?` • ${escapeHtml(row.reference)}`:""}</small></div><b>${money(row.value)}</b></article>`).join(""):"<p class=\"budget-item-empty\">Nenhum pedido atribuído a este item ainda.</p>"}</div>`;backdrop.hidden=false;requestAnimationFrame(()=>drawer.classList.add("open"));drawer.setAttribute("aria-hidden","false")}
+  function openBudgetItemDrawer(itemId){
+    const budget=state.work?.budget,item=budget?.items?.find(row=>row.id===itemId);if(!item)return;
+    let backdrop=$("#budget-item-backdrop"),drawer=$("#budget-item-drawer");
+    if(!backdrop){
+      document.body.insertAdjacentHTML("beforeend",'<div class="budget-item-backdrop" id="budget-item-backdrop" hidden></div><aside class="budget-item-drawer" id="budget-item-drawer" aria-hidden="true"><div class="budget-item-drawer-head"><div><p class="eyebrow">ITEM DO ORÇAMENTO</p><h3></h3></div><button class="icon-button" data-close-budget-drawer aria-label="Fechar">×</button></div><div class="budget-item-drawer-content"></div></aside>');
+      backdrop=$("#budget-item-backdrop");drawer=$("#budget-item-drawer");
+      backdrop.addEventListener("click",closeBudgetItemDrawer);drawer.querySelector("[data-close-budget-drawer]").addEventListener("click",closeBudgetItemDrawer);
+    }
+    const actuals=(budget.actuals||[]).filter(row=>row.itemId===itemId).sort((a,b)=>String(b.date).localeCompare(String(a.date)));
+    drawer.querySelector("h3").textContent=item.code+" — "+item.description;
+    drawer.querySelector(".budget-item-drawer-content").innerHTML=`<div class="budget-item-drawer-summary"><div><span>Planejado total</span><strong>${money(item.plannedTotal)}</strong></div><div><span>Realizado total</span><strong>${money(actuals.reduce((sum,row)=>sum+Number(row.value||0),0))}</strong></div><div><span>Pedidos atribuídos</span><strong>${actuals.filter(row=>row.source==="Pedido"||row.orderRef).length}</strong></div></div>
+    ${window.WorkReport.costHTML(item,actuals)}
+    <details class="item-manual-entry"><summary>+ Adicionar lançamento manual</summary><form class="item-manual-form">
+    <label>Tipo<select name="type"><option>Mão de obra</option><option>Material</option><option>Outros</option></select></label>
+    <label>Data<input name="date" type="date" value="${today()}" required></label>
+    <label>Valor (R$)<input name="value" type="number" min="0.01" step="0.01" required></label>
+    <label>Descrição<input name="description" maxlength="500" required placeholder="Serviço executado ou medição"></label>
+    <label>Referência<input name="reference" maxlength="500" placeholder="Prestador, contrato ou NF"></label>
+    <button type="submit" class="button button-primary">Salvar lançamento</button><small role="status"></small></form></details>
+    <div class="budget-item-orders"><h4>Pedidos e lançamentos deste item</h4>${actuals.map(row=>`<article><div><strong>${escapeHtml(row.description||"Lançamento do orçamento")}</strong><small><b>${escapeHtml(row.type||"Não classificado")}</b> · ${escapeHtml(row.source||"")} · ${escapeHtml(row.date||"")}${row.reference?" • "+escapeHtml(row.reference):""}</small></div><b>${money(row.value)}</b></article>`).join("")||'<p class="budget-item-empty">Nenhum lançamento atribuído a este item.</p>'}</div>`;
+    const form=drawer.querySelector("form");form.addEventListener("submit",async event=>{
+      event.preventDefault();if(!form.reportValidity())return;
+      const fields=new FormData(form),value=Number(fields.get("value"));if(!Number.isFinite(value)||value<=0)return;
+      const clientId=state.client.id,button=form.querySelector("button"),status=form.querySelector('[role="status"]');
+      button.disabled=true;status.textContent="Salvando...";
+      try{
+        await state.savePromise;
+        const snapshot=structuredClone(state.work);
+        if(snapshot.clientId!==clientId)throw new Error("A obra mudou. Abra o item novamente.");
+        snapshot.budget.actuals=snapshot.budget.actuals||[];
+        snapshot.budget.actuals.push({id:uid("real"),itemId,date:fields.get("date"),type:fields.get("type"),description:String(fields.get("description")).trim(),reference:String(fields.get("reference")||"").trim(),value,source:"Manual",orderRef:"",orderNumber:"",createdAt:new Date().toISOString()});
+        const saved=await api("/api/works/"+encodeURIComponent(clientId),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(snapshot)});
+        if(state.client.id===clientId){state.work=saved;render();openBudgetItemDrawer(itemId);setSaveStatus("Lançamento salvo");state.toast("Lançamento manual salvo")}
+      }catch(error){status.textContent=error.message;button.disabled=false}
+    });
+    backdrop.hidden=false;requestAnimationFrame(()=>drawer.classList.add("open"));drawer.setAttribute("aria-hidden","false");
+  }
   function bind(){
     document.addEventListener("click",event=>{const button=event.target.closest("[data-budget-item]");if(button){event.preventDefault();event.stopPropagation();openBudgetItemDrawer(button.dataset.budgetItem)}});
     document.addEventListener("click",event=>{const row=event.target.closest("[data-budget-row]");if(row&&!event.target.closest("button,a,input,select,textarea")){event.preventDefault();openBudgetItemDrawer(row.dataset.budgetRowId)}});
