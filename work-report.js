@@ -3,12 +3,13 @@
   const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
   const money=v=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(Number(v)||0);
   const norm=v=>String(v||"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").toLowerCase().trim();
+  const numberKey=v=>String(v??"").trim().replace(/^#/, "").replace(/^0+(?=\d)/,"");
   function buildModel(work,orders,selected){
     const budget=work.budget||{}, ids=new Set(selected);
     const items=(budget.items||[]).filter(item=>ids.has(item.id)).map(item=>{
       const entries=(budget.actuals||[]).filter(row=>row.itemId===item.id).map(row=>{
         const exact=orders.filter(order=>order.reportRef===row.orderRef && row.orderRef);
-        const candidates=exact.length?exact:orders.filter(order=>row.orderNumber && String(order.number)===String(row.orderNumber));
+        const candidates=exact.length?exact:orders.filter(order=>numberKey(row.orderNumber) && numberKey(order.number)===numberKey(row.orderNumber));
         const order=candidates.length===1?candidates[0]:null;
         return {...row,invoice:order?.invoice && norm(order.invoice)!=="solicitar"?order.invoice:"Não informada",supplier:order?.supplier||"Não informado",invoiceUrl:/^https:\/\//i.test(order?.nfFile||"")?order.nfFile:"",linked:!!order};
       });

@@ -18,3 +18,7 @@ test("números ambíguos não atribuem NF e relatório escapa texto",()=>{
   assert.equal(m.items[0].entries[0].linked,false);
   assert.ok(reportHTML(m).includes("Teste &lt;obra&gt;"));
 });
+test("número com zero à esquerda recupera NF quando o pedido é único",()=>{
+  const m=buildModel(work,[{number:"01",invoice:"456",supplier:"Fornecedor"}],["a"]);
+  assert.equal(m.items[0].entries[0].invoice,"456");
+});
