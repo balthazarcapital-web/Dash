@@ -53,3 +53,14 @@
 .item-manual-entry{border:1px solid #dce3eb;padding:14px;border-radius:12px;margin:18px 0}.item-manual-entry summary{cursor:pointer;font-size:14px;font-weight:700}.item-manual-form{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:12px;margin-top:16px}.item-manual-form label{font-size:12px;color:#607086}.item-manual-form input,.item-manual-form select{display:block;width:100%;height:40px;margin-top:6px;border:1px solid #dce3eb;border-radius:8px;padding:8px;font-size:13px}.item-manual-form button{width:auto;align-self:end}.item-manual-form [role=status]{grid-column:1/-1;font-size:12px}
 @media(max-width:600px){.cost-split,.item-manual-form{grid-template-columns:1fr}.cost-values{justify-content:space-between}}
 .cost-part>strong{font-size:15px}.cost-values{font-size:13px}.cost-values b{font-size:16px}.cost-alert{font-size:12px}.item-manual-entry summary{font-size:15px}.item-manual-form label{font-size:13px}.item-manual-form input,.item-manual-form select{font-size:14px}.budget-item-drawer .budget-item-drawer-summary span{font-size:10px}
+#budget-item-drawer .budget-item-orders article{display:grid;grid-template-columns:minmax(0,1fr) auto 36px;align-items:center}
+.item-remove-actual{width:36px;height:36px;border:1px solid #edc9c6;background:#fff5f4;color:#b3433d;border-radius:9px;font-size:24px;line-height:1}
+.item-remove-actual:hover{background:#ffe7e4}.item-remove-actual:focus-visible{outline:2px solid #b3433d;outline-offset:3px}.item-remove-actual:disabled{opacity:.4;cursor:wait}
+#work .budget-table th{font-size:12px;padding:14px 12px}
+#work .budget-table td{font-size:15px;padding:15px 12px;line-height:1.5}
+#work .budget-table td strong,#work .budget-table td b{font-size:15px}
+#work .budget-table td small{font-size:12px}
+#work .budget-item-progress-wrap>span{font-size:12px}
+#work .budget-row-action{font-size:12px;padding:9px 11px}
+#work .budget-table td[data-label="Descrição"]{min-width:290px}
+@media(max-width:760px){#work .budget-table td{padding:7px 0}#work .budget-table td:before{font-size:11px}#work .budget-table td[data-label="Descrição"]{min-width:0}}

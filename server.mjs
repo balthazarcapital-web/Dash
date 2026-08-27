@@ -316,12 +316,14 @@ function restorePublishedWork(local, seed) {
   const work = structuredClone(local);
   const localBudgetItems = work.budget?.items?.length || 0;
   const seedBudgetItems = seed.budget?.items?.length || 0;
+  const deletedActualKeys = work.budget?.deletedActualKeys || [];
+  const seedActuals = (seed.budget?.actuals || []).filter(row => !deletedActualKeys.includes("id:"+row.id) && !(row.orderRef && deletedActualKeys.includes("order:"+row.orderRef)));
   if (seedBudgetItems > localBudgetItems) {
-    const actuals = mergeById(seed.budget.actuals || [], work.budget?.actuals || [], "orderRef");
-    work.budget = { ...seed.budget, actuals };
+    const actuals = mergeById(seedActuals, work.budget?.actuals || [], "orderRef");
+    work.budget = { ...seed.budget, actuals, deletedActualKeys };
     changed = true;
   } else if (seed.budget && work.budget) {
-    const actuals = mergeById(seed.budget.actuals || [], work.budget.actuals || [], "orderRef");
+    const actuals = mergeById(seedActuals, work.budget.actuals || [], "orderRef");
     if (actuals.length > (work.budget.actuals || []).length) { work.budget.actuals = actuals; changed = true; }
   }
   const documentKey = row => norm(row.title);
@@ -357,7 +359,10 @@ function normalizeWork(incoming, existing) {
   const date = value => /^\d{4}-\d{2}-\d{2}$/.test(String(value || "")) ? String(value) : "";
   const details = incoming.details || {};
   const incomingBudget = incoming.budget || existing.budget || null;
+  const retainedActualIds = new Set((incomingBudget?.actuals || []).map(row => row.id));
+  const removedActuals = (existing.budget?.actuals || []).filter(row => !retainedActualIds.has(row.id));
   const normalizedBudget = incomingBudget ? {
+    deletedActualKeys: [...new Set([...(existing.budget?.deletedActualKeys || []), ...removedActuals.flatMap(row => ["id:"+row.id, ...(row.orderRef ? ["order:"+row.orderRef] : [])])])],
     sourceTitle: text(incomingBudget.sourceTitle, 240), sourceUrl: /^https?:\/\//i.test(String(incomingBudget.sourceUrl || "")) ? text(incomingBudget.sourceUrl, 1200) : "",
     budgetDate: date(incomingBudget.budgetDate), project: text(incomingBudget.project, 240), owner: text(incomingBudget.owner, 180),
     directTotal: Math.max(0, Number(incomingBudget.directTotal) || 0), administrationRate: Math.max(0, Number(incomingBudget.administrationRate) || 0),

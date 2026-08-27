@@ -86,7 +86,23 @@
     <label>Descrição<input name="description" maxlength="500" required placeholder="Serviço executado ou medição"></label>
     <label>Referência<input name="reference" maxlength="500" placeholder="Prestador, contrato ou NF"></label>
     <button type="submit" class="button button-primary">Salvar lançamento</button><small role="status"></small></form></details>
-    <div class="budget-item-orders"><h4>Pedidos e lançamentos deste item</h4>${actuals.map(row=>`<article><div><strong>${escapeHtml(row.description||"Lançamento do orçamento")}</strong><small><b>${escapeHtml(row.type||"Não classificado")}</b> · ${escapeHtml(row.source||"")} · ${escapeHtml(row.date||"")}${row.reference?" • "+escapeHtml(row.reference):""}</small></div><b>${money(row.value)}</b></article>`).join("")||'<p class="budget-item-empty">Nenhum lançamento atribuído a este item.</p>'}</div>`;
+    <div class="budget-item-orders"><h4>Pedidos e lançamentos deste item</h4>${actuals.map(row=>`<article><div><strong>${escapeHtml(row.description||"Lançamento do orçamento")}</strong><small><b>${escapeHtml(row.type||"Não classificado")}</b> · ${escapeHtml(row.source||"")} · ${escapeHtml(row.date||"")}${row.reference?" • "+escapeHtml(row.reference):""}</small></div><b>${money(row.value)}</b><button type="button" class="item-remove-actual" data-item-remove="${escapeHtml(row.id)}" aria-label="Excluir lançamento ${escapeHtml(row.description||row.type)}" title="Excluir deste item">×</button></article>`).join("")||'<p class="budget-item-empty">Nenhum lançamento atribuído a este item.</p>'}</div>`;
+    drawer.querySelectorAll("[data-item-remove]").forEach(button=>button.addEventListener("click",async()=>{
+      const row=actuals.find(entry=>entry.id===button.dataset.itemRemove);if(!row)return;
+      const isOrder=row.source==="Pedido"||row.orderRef;
+      if(!confirm("Excluir "+(row.description||row.type)+" ("+money(row.value)+") deste item?"+(isOrder?" O pedido e a nota fiscal permanecem na base; apenas a atribuição e seu custo serão removidos.":" O lançamento manual será removido do realizado.")))return;
+      const clientId=state.client.id;
+      drawer.querySelectorAll("[data-item-remove]").forEach(b=>b.disabled=true);
+      try{
+        await state.savePromise;
+        if(state.client.id!==clientId)throw new Error("A obra mudou. Reabra o item.");
+        const latest=await api("/api/works/"+encodeURIComponent(clientId));
+        latest.budget.actuals=(latest.budget.actuals||[]).filter(entry=>entry.id!==row.id);
+        const saved=await api("/api/works/"+encodeURIComponent(clientId),{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify(latest)});
+        if(saved.budget?.actuals?.some(entry=>entry.id===row.id))throw new Error("A exclusão não foi confirmada. Tente novamente.");
+        if(state.client.id===clientId){state.work=saved;render();openBudgetItemDrawer(itemId);setSaveStatus("Exclusão salva");state.toast(isOrder?"Atribuição removida. O pedido pode ser associado a outro item.":"Lançamento excluído")}
+      }catch(error){state.toast(error.message);drawer.querySelectorAll("[data-item-remove]").forEach(b=>b.disabled=false)}
+    }));
     const form=drawer.querySelector("form");form.addEventListener("submit",async event=>{
       event.preventDefault();if(!form.reportValidity())return;
       const fields=new FormData(form),value=Number(fields.get("value"));if(!Number.isFinite(value)||value<=0)return;
