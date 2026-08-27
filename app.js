@@ -148,7 +148,7 @@
   Object.values(clients).forEach(client=>$("#client-select").add(new Option(client.name,client.id)));
   updateClientChrome();
   window.DeterlimpQuotes?.init({orders:()=>state.data,toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
-  window.WorkManagement?.init({toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
+  window.WorkManagement?.init({orders:()=>state.data.map((order,index)=>({...order,reportRef:orderCostRef(order,index)})),toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
   if(requestedView==="quotes")window.DeterlimpQuotes?.enter();
   loadData();
 })();
