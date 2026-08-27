@@ -457,7 +457,14 @@ async function updateOrderInSheet(clientId, order) {
   if (headers < 0) throw new Error("Não encontrei os cabeçalhos da planilha.");
   const header = rows[headers].map(cell => norm(cell)); const col = name => header.findIndex(cell => cell === norm(name) || cell.includes(norm(name)));
   const numberCol = col("Nº do Pedido") >= 0 ? col("Nº do Pedido") : col("Numero do Pedido"), descriptionCol = col("Descrição"), statusCol = col("Status");
-  const rowIndex = rows.findIndex((row, index) => index > headers && ((order.number && String(row[numberCol] || "").replace(/^0+/, "") === String(order.number).replace(/^0+/, "")) || (!order.number && norm(row[descriptionCol]) === norm(order.description))));
+  const wantedNumber = String(order.number || "").replace(/^0+/, ""), wantedDescription = norm(order.description || "");
+  const rowIndex = rows.findIndex((row, index) => {
+    if (index <= headers) return false;
+    const rowNumber = String(row[numberCol] || "").replace(/^0+/, ""), rowDescription = norm(row[descriptionCol]);
+    if (wantedNumber && wantedDescription) return rowNumber === wantedNumber && rowDescription === wantedDescription;
+    if (wantedNumber) return rowNumber === wantedNumber;
+    return Boolean(wantedDescription) && rowDescription === wantedDescription;
+  });
   if (rowIndex < 0) throw new Error("Não encontrei esse pedido na planilha.");
   const canonicalStatus = value => { const status = norm(value); if (["finalizado", "concluido", "concluida"].includes(status)) return "Concluído"; if (["cotacao", "em cotacao"].includes(status)) return "Em cotação"; return value || ""; };
   const updates = [];
