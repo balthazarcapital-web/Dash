@@ -462,8 +462,11 @@ async function updateOrderInSheet(clientId, order) {
   const canonicalStatus = value => { const status = norm(value); if (["finalizado", "concluido", "concluida"].includes(status)) return "Concluído"; if (["cotacao", "em cotacao"].includes(status)) return "Em cotação"; return value || ""; };
   const updates = [{ range: `${String.fromCharCode(65 + statusCol)}${rowIndex + 1}`, values: [[canonicalStatus(order.status)]]}];
   for (const [field, label] of [["supplier","Fornecedor"],["delivery","Data da Entrega do Material"],["invoice","Nota Fiscal"],["payment","Pagamento"]]) { const index = col(label); if (index >= 0 && order[field] !== undefined) updates.push({ range: `${String.fromCharCode(65 + index)}${rowIndex + 1}`, values: [[order[field] || ""]] }); }
-  const notesCol = ["Observações", "Observacao", "Notas", "Comentários", "Comentario"].map(col).find(index => index >= 0);
-  if (notesCol >= 0 && order.notes !== undefined) updates.push({ range: `${String.fromCharCode(65 + notesCol)}${rowIndex + 1}`, values: [[String(order.notes || "").trim()]] });
+  const notesCol = header.findIndex(cell => /observ|coment|^notas?$/.test(cell));
+  if (order.notes !== undefined) {
+    if (notesCol < 0) throw new Error("A planilha não possui uma coluna de observação para este pedido.");
+    updates.push({ range: `${String.fromCharCode(65 + notesCol)}${rowIndex + 1}`, values: [[String(order.notes || "").trim()]] });
+  }
   const write = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values:batchUpdate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: updates }) });
   if (!write.ok) throw new Error(`Google Sheets respondeu ${write.status}.`); return { ok: true, row: rowIndex + 1, updated: updates.length };
 }
