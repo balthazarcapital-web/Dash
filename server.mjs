@@ -388,7 +388,7 @@ async function getOrCreateWork(clientId, clientName = "") {
     const phases = (work.phases || []).filter(row => norm(row.name) !== "documentacao");
     if (phases.length !== (work.phases || []).length) { work.phases = phases.map((row, order) => ({ ...row, order })); changed = true; }
     if (clientName && cleanName(work.details?.name).toLowerCase() === cleanName(clientId).toLowerCase()) { work.details.name = clientName; work.details.client = clientName; changed = true; }
-    if (clientId === "dr_clovis_cmfs" && !work.budget) { work.budget = { ...(await drClovisBudget()), actuals: [] }; changed = true; }
+    if (clientId === "dr_clovis_cmfs" && (!work.budget || !work.budget.items?.length)) { const actuals = work.budget?.actuals || []; work.budget = { ...(await drClovisBudget()), actuals }; changed = true; }
     if (clientId === "dr_clovis_cmfs" && !(work.documents || []).some(row => row.driveUrl?.includes("19Zu1QQOW64b5bCFQ2mHQP3AwYqe7zYI2"))) {
       work.documents = [...(work.documents || []), { id: uid("doc"), title: "Orçamento da Obra CLI", required: false, status: "Aprovado", expiry: "", owner: "", notes: "Planilha-base do orçamento detalhado da obra, com material, mão de obra e taxa administrativa.", driveUrl: "https://drive.google.com/file/d/19Zu1QQOW64b5bCFQ2mHQP3AwYqe7zYI2/view?usp=drivesdk", files: [] }]; changed = true;
     }
