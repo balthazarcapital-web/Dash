@@ -489,7 +489,14 @@ async function updateOrderInSheet(clientId, order) {
   const canonicalStatus = value => { const status = norm(value); if (["finalizado", "concluido", "concluida"].includes(status)) return "Concluído"; if (["cotacao", "em cotacao"].includes(status)) return "Em cotação"; return value || ""; };
   const updates = [];
   if (order.status !== undefined && statusCol >= 0) updates.push({ range: cellRange(statusCol,rowIndex + 1), values: [[canonicalStatus(order.status)]]});
-  for (const [field, label] of [["supplier","Fornecedor"],["delivery","Data da Entrega do Material"],["invoice","Nota Fiscal"],["payment","Pagamento"]]) { const index = col(label); if (index >= 0 && order[field] !== undefined) updates.push({ range: cellRange(index,rowIndex + 1), values: [[order[field] || ""]] }); }
+  for (const [field, label] of [["supplier","Fornecedor"],["delivery","Data da Entrega do Material"],["invoice","Nota Fiscal"],["payment","Pagamento"],["value","Valor"]]) {
+    if (order[field] === undefined) continue;
+    const exact = header.indexOf(norm(label)), index = exact >= 0 ? exact : col(label);
+    if (index < 0) throw new Error(`A coluna ${label} não foi encontrada. Nenhuma alteração foi gravada.`);
+    const value = field === "value" ? Number(order[field]) : String(order[field] ?? "");
+    if (field === "value" && (order[field] === "" || order[field] === null || !Number.isFinite(value) || value < 0)) throw new Error("Informe um valor válido, maior ou igual a zero.");
+    updates.push({ range: cellRange(index,rowIndex + 1), values: [[value]] });
+  }
   const occurrenceCol = header.findIndex(cell => /ocorr/.test(cell) && /pedido/.test(cell));
   const notesCol = occurrenceCol >= 0 ? occurrenceCol : header.findIndex(cell => /ocorr|observ|coment|^notas?$/.test(cell));
   let savedNotes;

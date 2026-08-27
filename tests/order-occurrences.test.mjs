@@ -11,7 +11,7 @@ const norm = value => String(value || "").normalize("NFD").replace(/[\u0300-\u03
 
 function fixture({fail = false, duplicate = false} = {}) {
   const rows = [
-    ["Nº do Pedido", "Descrição", "Status", "Observação interna", "Ocorrências do pedido"],
+    ["Nº do Pedido", "Descrição", "Status", "Observação interna", "Ocorrências do pedido", "Fornecedor", "Nota Fiscal", "Valor", "Pagamento"],
     ["28", "Outro pedido", "Aprovado", "Não alterar", "Outra ocorrência"],
     ["29", "Materiais da obra", "Em cotação", "Não alterar", "Histórico anterior"]
   ];
@@ -66,4 +66,22 @@ test("pedido sem identidade ou duplicado nunca escreve", async () => {
   await assert.rejects(f.context.updateOrderInSheet("test",{notes:"Texto"}),/identificação/);
   await assert.rejects(f.context.updateOrderInSheet("test",{number:"29",description:"Materiais da obra",notes:"Texto"}),/Mais de um/);
   assert.equal(f.writes.length,0);
+});
+
+test("fornecedor, valor numérico e NF preservam pagamento e ocorrências", async () => {
+  const f=fixture();
+  await f.context.updateOrderInSheet("test",{number:"29",description:"Materiais da obra",supplier:"Balaroti",invoice:"001234",value:1234.56});
+  assert.deepEqual(f.writes[0].data,[
+    {range:"'Pedidos da obra'!F3",values:[["Balaroti"]]},
+    {range:"'Pedidos da obra'!G3",values:[["001234"]]},
+    {range:"'Pedidos da obra'!H3",values:[[1234.56]]}
+  ]);
+});
+
+test("valor zero é salvo e valores inválidos não escrevem", async () => {
+  const f=fixture();
+  await f.context.updateOrderInSheet("test",{number:"29",value:0});
+  assert.equal(f.writes[0].data[0].values[0][0],0);
+  for(const value of [-1,"abc",null,""]) await assert.rejects(f.context.updateOrderInSheet("test",{number:"29",value}),/valor válido/);
+  assert.equal(f.writes.length,1);
 });
