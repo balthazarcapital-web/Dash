@@ -460,9 +460,10 @@ async function updateOrderInSheet(clientId, order) {
   const rowIndex = rows.findIndex((row, index) => index > headers && ((order.number && String(row[numberCol] || "").replace(/^0+/, "") === String(order.number).replace(/^0+/, "")) || (!order.number && norm(row[descriptionCol]) === norm(order.description))));
   if (rowIndex < 0) throw new Error("Não encontrei esse pedido na planilha.");
   const canonicalStatus = value => { const status = norm(value); if (["finalizado", "concluido", "concluida"].includes(status)) return "Concluído"; if (["cotacao", "em cotacao"].includes(status)) return "Em cotação"; return value || ""; };
-  const updates = [{ range: `${String.fromCharCode(65 + statusCol)}${rowIndex + 1}`, values: [[canonicalStatus(order.status)]]}];
+  const updates = [];
+  if (order.status !== undefined && statusCol >= 0) updates.push({ range: `${String.fromCharCode(65 + statusCol)}${rowIndex + 1}`, values: [[canonicalStatus(order.status)]]});
   for (const [field, label] of [["supplier","Fornecedor"],["delivery","Data da Entrega do Material"],["invoice","Nota Fiscal"],["payment","Pagamento"]]) { const index = col(label); if (index >= 0 && order[field] !== undefined) updates.push({ range: `${String.fromCharCode(65 + index)}${rowIndex + 1}`, values: [[order[field] || ""]] }); }
-  const notesCol = header.findIndex(cell => /observ|coment|^notas?$/.test(cell));
+  const notesCol = header.findIndex(cell => /ocorr|observ|coment|^notas?$/.test(cell));
   if (order.notes !== undefined) {
     if (notesCol < 0) throw new Error("A planilha não possui uma coluna de observação para este pedido.");
     updates.push({ range: `${String.fromCharCode(65 + notesCol)}${rowIndex + 1}`, values: [[String(order.notes || "").trim()]] });
