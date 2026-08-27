@@ -456,7 +456,7 @@ async function updateOrderInSheet(clientId, order) {
   const payload = await read.json(); const rows = payload.values || [], headers = rows.findIndex(row => row.some(cell => /status/i.test(String(cell))) && row.some(cell => /descri[cç][aã]o/i.test(String(cell))));
   if (headers < 0) throw new Error("Não encontrei os cabeçalhos da planilha.");
   const header = rows[headers].map(cell => norm(cell)); const col = name => header.findIndex(cell => cell === norm(name) || cell.includes(norm(name)));
-  const numberCol = col("Nº do Pedido") >= 0 ? col("Nº do Pedido") : col("Numero do Pedido"), descriptionCol = col("Descrição"), statusCol = col("Status");
+  const numberCol = col("Nº do Pedido") >= 0 ? col("Nº do Pedido") : col("Numero do Pedido") >= 0 ? col("Numero do Pedido") : header.findIndex(cell => /pedido/.test(cell) && !/descri/.test(cell)), descriptionCol = col("Descrição") >= 0 ? col("Descrição") : header.findIndex(cell => /descri/.test(cell)), statusCol = col("Status");
   const wantedNumber = String(order.number || "").replace(/^0+/, ""), wantedDescription = norm(order.description || "");
   let rowIndex = rows.findIndex((row, index) => {
     if (index <= headers) return false;
