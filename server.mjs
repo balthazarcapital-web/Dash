@@ -452,19 +452,30 @@ async function supabaseSyncRecords(records) {
 }
 async function updateOrderInSheet(clientId, order) {
   const base = spreadsheetBases[cleanName(clientId)]; if (!base) throw new Error("Base deste cliente não configurada.");
-  const read = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values/${encodeURIComponent("A:Z")}?majorDimension=ROWS`);
+  if (!order || (!String(order.number || "").trim() && !String(order.description || "").trim())) throw new Error("Pedido sem identificação. Atualize o painel antes de salvar.");
+  const metadata = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}?fields=sheets(properties(sheetId,title))`);
+  const sheet = (await metadata.json()).sheets?.find(item => String(item.properties.sheetId) === String(base.gid));
+  if (!sheet) throw new Error("A aba de pedidos configurada não foi encontrada.");
+  const sheetPrefix = "'" + sheet.properties.title.replace(/'/g, "''") + "'!";
+  const cellRange = (column, row) => {
+    let name = ""; for (let n = column + 1; n > 0; n = Math.floor((n - 1) / 26)) name = String.fromCharCode(65 + (n - 1) % 26) + name;
+    return sheetPrefix + name + row;
+  };
+  const read = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values/${encodeURIComponent(sheetPrefix + "A:ZZ")}?majorDimension=ROWS`);
   const payload = await read.json(); const rows = payload.values || [], headers = rows.findIndex(row => row.some(cell => /status/i.test(String(cell))) && row.some(cell => /descri[cç][aã]o/i.test(String(cell))));
   if (headers < 0) throw new Error("Não encontrei os cabeçalhos da planilha.");
   const header = rows[headers].map(cell => norm(cell)); const col = name => header.findIndex(cell => cell === norm(name) || cell.includes(norm(name)));
-  const numberCol = col("Nº do Pedido") >= 0 ? col("Nº do Pedido") : col("Numero do Pedido") >= 0 ? col("Numero do Pedido") : header.findIndex(cell => /pedido/.test(cell) && !/descri/.test(cell)), descriptionCol = col("Descrição") >= 0 ? col("Descrição") : header.findIndex(cell => /descri/.test(cell)), statusCol = col("Status");
+  const numberCol = col("Nº do Pedido") >= 0 ? col("Nº do Pedido") : col("Numero do Pedido") >= 0 ? col("Numero do Pedido") : header.findIndex(cell => /pedido/.test(cell) && !/descri|ocorr|observ|coment/.test(cell)), descriptionCol = col("Descrição") >= 0 ? col("Descrição") : header.findIndex(cell => /descri/.test(cell)), statusCol = col("Status");
   const wantedNumber = String(order.number || "").replace(/^0+/, ""), wantedDescription = norm(order.description || "");
-  let rowIndex = rows.findIndex((row, index) => {
+  const matches = rows.map((row, index) => ({row, index})).filter(({row, index}) => {
     if (index <= headers) return false;
     const rowNumber = String(row[numberCol] || "").replace(/^0+/, ""), rowDescription = norm(row[descriptionCol]);
     if (wantedNumber && wantedDescription) return rowNumber === wantedNumber && rowDescription === wantedDescription;
     if (wantedNumber) return rowNumber === wantedNumber;
     return Boolean(wantedDescription) && rowDescription === wantedDescription;
   });
+  if (matches.length > 1) throw new Error("Mais de um pedido corresponde a essa identificação. Nenhuma alteração foi feita.");
+  let rowIndex = matches.length === 1 ? matches[0].index : -1;
   if (rowIndex < 0 && wantedNumber) {
     const numberMatches = rows.map((row, index) => ({ row, index })).filter(({ row, index }) => index > headers && String(row[numberCol] || "").replace(/^0+/, "") === wantedNumber);
     if (numberMatches.length === 1) rowIndex = numberMatches[0].index;
@@ -472,15 +483,19 @@ async function updateOrderInSheet(clientId, order) {
   if (rowIndex < 0) throw new Error("Não encontrei esse pedido na planilha.");
   const canonicalStatus = value => { const status = norm(value); if (["finalizado", "concluido", "concluida"].includes(status)) return "Concluído"; if (["cotacao", "em cotacao"].includes(status)) return "Em cotação"; return value || ""; };
   const updates = [];
-  if (order.status !== undefined && statusCol >= 0) updates.push({ range: `${String.fromCharCode(65 + statusCol)}${rowIndex + 1}`, values: [[canonicalStatus(order.status)]]});
-  for (const [field, label] of [["supplier","Fornecedor"],["delivery","Data da Entrega do Material"],["invoice","Nota Fiscal"],["payment","Pagamento"]]) { const index = col(label); if (index >= 0 && order[field] !== undefined) updates.push({ range: `${String.fromCharCode(65 + index)}${rowIndex + 1}`, values: [[order[field] || ""]] }); }
-  const notesCol = header.findIndex(cell => /ocorr|observ|coment|^notas?$/.test(cell));
+  if (order.status !== undefined && statusCol >= 0) updates.push({ range: cellRange(statusCol,rowIndex + 1), values: [[canonicalStatus(order.status)]]});
+  for (const [field, label] of [["supplier","Fornecedor"],["delivery","Data da Entrega do Material"],["invoice","Nota Fiscal"],["payment","Pagamento"]]) { const index = col(label); if (index >= 0 && order[field] !== undefined) updates.push({ range: cellRange(index,rowIndex + 1), values: [[order[field] || ""]] }); }
+  const occurrenceCol = header.findIndex(cell => /ocorr/.test(cell) && /pedido/.test(cell));
+  const notesCol = occurrenceCol >= 0 ? occurrenceCol : header.findIndex(cell => /ocorr|observ|coment|^notas?$/.test(cell));
+  let savedNotes;
   if (order.notes !== undefined) {
     if (notesCol < 0) throw new Error("A planilha não possui uma coluna de observação para este pedido.");
-    updates.push({ range: `${String.fromCharCode(65 + notesCol)}${rowIndex + 1}`, values: [[String(order.notes || "").trim()]] });
+    const incoming = String(order.notes || "").trim(), existing = String(rows[rowIndex][notesCol] || "");
+    savedNotes = order.appendNotes ? [existing, incoming].filter(Boolean).join("\n\n") : incoming;
+    updates.push({ range: cellRange(notesCol,rowIndex + 1), values: [[savedNotes]] });
   }
-  const write = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values:batchUpdate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ valueInputOption: "USER_ENTERED", data: updates }) });
-  if (!write.ok) throw new Error(`Google Sheets respondeu ${write.status}.`); return { ok: true, row: rowIndex + 1, updated: updates.length };
+  const write = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values:batchUpdate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ valueInputOption: "RAW", data: updates }) });
+  if (!write.ok) throw new Error(`Google Sheets respondeu ${write.status}.`); return { ok: true, row: rowIndex + 1, updated: updates.length, notes: savedNotes };
 }
 async function normalizeOrderStatusesInSheet(clientId) {
   const base = spreadsheetBases[cleanName(clientId)]; if (!base) throw new Error("Base deste cliente não configurada.");
