@@ -256,123 +256,7 @@
         </div>
       </section>
 
-      <section class="content quote-view" id="quotes" hidden>
-        <header class="quote-hero">
-          <div>
-            <p class="eyebrow">CENTRAL DE COTAÇÕES</p>
-            <h2>Transforme propostas em um mapa pronto</h2>
-            <p>Importe o pedido, reúna as propostas do Drive ou do computador e confira cada divergência antes de gerar o mapa.</p>
-          </div>
-          <div class="quote-hero-actions">
-            <button class="button button-secondary" id="quote-history-toggle"><span data-icon="clock"></span>Histórico</button>
-            <button class="button button-primary" id="quote-new"><span aria-hidden="true">＋</span>Nova cotação</button>
-          </div>
-        </header>
-
-        <div class="local-status" id="quote-service-status" role="status">
-          <span class="source-dot"></span><strong>Verificando serviço local...</strong><small>Seus arquivos permanecem neste computador.</small>
-        </div>
-
-        <aside class="quote-history panel" id="quote-history" hidden>
-          <div class="panel-header"><div><p class="eyebrow">HISTÓRICO LOCAL</p><h3>Mapas e rascunhos</h3></div><button class="icon-button" id="quote-history-close" aria-label="Fechar histórico">×</button></div>
-          <div id="quote-history-list" class="quote-history-list"></div>
-        </aside>
-
-        <div class="quote-empty panel" id="quote-empty">
-          <span class="quote-empty-icon">MC</span>
-          <h3>Comece uma nova cotação</h3>
-          <p>O sistema guarda rascunhos automaticamente e avisa quando quantidades ou itens não correspondem ao pedido.</p>
-          <button class="button button-primary" data-create-quote>Iniciar mapa de cotação</button>
-        </div>
-
-        <div class="quote-workspace" id="quote-workspace" hidden>
-          <div class="quote-workspace-top">
-            <div><span class="quote-status-chip" id="quote-status-chip">Rascunho</span><h2 id="quote-workspace-title">Nova cotação</h2><p id="quote-save-status">Salvo localmente</p></div>
-            <button class="text-button" id="quote-close-workspace">Fechar cotação</button>
-          </div>
-
-          <nav class="quote-stepper quote-stepper-five" aria-label="Etapas do processo de cotação">
-            <button class="active" data-quote-step="1"><b>1</b><span>Pedido<small>Itens solicitados</small></span></button>
-            <button data-quote-step="2"><b>2</b><span>Arquivos<small>Drive, PDF ou WhatsApp</small></span></button>
-            <button data-quote-step="3"><b>3</b><span>Mapa<small>Comparação item a item</small></span></button>
-            <button data-quote-step="4"><b>4</b><span>Escolha<small>Fornecedor aprovado</small></span></button>
-            <button data-quote-step="5"><b>5</b><span>Ordem de Compra<small>Documento final</small></span></button>
-          </nav>
-
-          <section class="quote-step active" data-step-panel="1">
-            <div class="quote-grid quote-grid-request">
-              <article class="panel quote-form-card">
-                <div class="panel-header"><div><p class="eyebrow">IDENTIFICAÇÃO</p><h3>Dados do pedido</h3></div><span class="step-ok" id="request-ready">Pendente</span></div>
-                <label class="field-label">Buscar pedido<input id="quote-order-search" autocomplete="off" placeholder="Número, categoria ou descrição"></label>
-                <label class="field-label">Selecionar pedido já registrado<select id="quote-existing-order"><option value="">Selecione um pedido</option></select></label>
-                <div class="form-grid">
-                  <label class="field-label">Número do pedido<input id="request-number" autocomplete="off"></label>
-                  <label class="field-label">Categoria<input id="request-category" autocomplete="off"></label>
-                  <label class="field-label">Obra / centro de custo<input id="request-work" value="Deterlimp"></label>
-                  <label class="field-label">Solicitante<input id="request-requester"></label>
-                  <label class="field-label">Data do pedido<input id="request-date" type="date"></label>
-                  <label class="field-label">Data da necessidade<input id="request-needed" type="date"></label>
-                </div>
-              </article>
-              <article class="panel quote-import-card">
-                <div class="panel-header"><div><p class="eyebrow">IMPORTAR PEDIDO</p><h3>PDF, Excel, imagem ou texto</h3></div><span class="privacy-pill">Processamento local</span></div>
-                <label class="upload-zone" id="request-dropzone">
-                  <input type="file" id="request-file" accept=".pdf,.xlsx,.xls,.csv,.txt,.png,.jpg,.jpeg" hidden>
-                  <span class="upload-icon">↑</span><strong>Arraste o pedido ou escolha um arquivo</strong><small>PDF, Excel, CSV, JPG ou PNG • até 30 MB</small>
-                </label>
-                <div class="or-divider"><span>ou cole os itens</span></div>
-                <textarea id="request-text" class="quote-textarea" placeholder="Ex.: 1 | 8 | UN | ENGATE FLEXÍVEL DE 40 CM"></textarea>
-                <button class="button button-secondary full-width" id="request-import">Ler pedido</button>
-                <div class="import-feedback" id="request-import-feedback" hidden></div>
-              </article>
-            </div>
-            <article class="panel quote-items-card">
-              <div class="panel-header"><div><p class="eyebrow">MATERIAIS</p><h3>Itens reconhecidos</h3></div><button class="text-button" id="request-add-item">＋ Adicionar item</button></div>
-              <div class="quote-table-wrap"><table class="quote-edit-table"><thead><tr><th>Item</th><th>Quantidade</th><th>Un.</th><th>Descrição do material</th><th>Necessidade</th><th></th></tr></thead><tbody id="request-items-body"></tbody></table></div>
-            </article>
-            <div class="step-actions"><span></span><button class="button button-primary" data-next-step="2">Continuar para orçamentos →</button></div>
-          </section>
-
-          <section class="quote-step" data-step-panel="2" hidden>
-            <div class="drive-import-card panel">
-              <div><span class="drive-badge">DRIVE</span><div><strong>Buscar arquivos do pedido</strong><p>Localiza o pedido e os orçamentos na pasta do cliente, sem depender de planilha-índice.</p></div></div>
-              <button class="button button-primary" id="quote-drive-search">Buscar na pasta do pedido</button>
-              <div class="import-feedback" id="quote-drive-feedback" hidden></div>
-            </div>
-            <div class="step-intro"><div><p class="eyebrow">ARQUIVOS E PROPOSTAS</p><h2>Orçamentos dos fornecedores</h2><p>Importe PDF/Excel/imagem ou cole a cotação recebida por texto ou WhatsApp.</p></div><button class="button button-primary" id="supplier-add">＋ Adicionar fornecedor</button></div>
-            <div class="supplier-grid" id="supplier-grid"></div>
-            <div class="step-actions"><button class="button button-secondary" data-next-step="1">← Voltar</button><button class="button button-primary" data-next-step="3">Conferir comparação →</button></div>
-          </section>
-
-          <section class="quote-step" data-step-panel="3" hidden>
-            <div class="step-intro"><div><p class="eyebrow">CONFERÊNCIA OBRIGATÓRIA</p><h2>Compare item por item</h2><p>O pedido do engenheiro é a referência. Divergências precisam ser marcadas como verificadas.</p></div><div class="review-counter" id="review-counter"><strong>0</strong><span>pendências</span></div></div>
-            <div class="supplier-review-summary" id="supplier-review-summary"></div>
-            <div class="divergence-list" id="divergence-list"></div>
-            <article class="panel comparison-panel">
-              <div class="panel-header"><div><p class="eyebrow">MAPA PRÉVIO</p><h3>Valores relacionados</h3></div><span class="panel-total" id="comparison-total-label"></span></div>
-              <div class="quote-table-wrap"><table class="comparison-table" id="comparison-table"></table></div>
-            </article>
-            <div class="unmatched-panel" id="unmatched-panel" hidden></div>
-            <div class="map-generation-bar panel"><div><strong>Mapa de cotação</strong><span>Confira a prévia e escolha Excel ou Google Planilhas. Os dois arquivos usam os mesmos itens relacionados.</span></div><div><div class="generate-warning" id="generate-warning" hidden></div><div class="map-export-actions"><button class="button button-primary" id="generate-map">Gerar Excel</button><button class="button button-secondary" id="export-google-sheet">Criar no Google Planilhas</button><a class="button button-download" id="download-map" hidden>Baixar Excel</a><a class="button button-secondary" id="open-quote-google-sheet" target="_blank" rel="noopener" hidden>Abrir Google Planilhas</a></div></div></div>
-            <div class="step-actions"><button class="button button-secondary" data-next-step="2">← Voltar</button><button class="button button-primary" data-next-step="4">Escolher fornecedor →</button></div>
-          </section>
-
-          <section class="quote-step" data-step-panel="4" hidden>
-            <div class="step-intro"><div><p class="eyebrow">APROVAÇÃO</p><h2>Escolha o fornecedor</h2><p>A decisão é humana: registre quem foi aprovado e o motivo da escolha.</p></div><span class="privacy-pill">Sem escolha automática</span></div>
-            <div class="approval-grid" id="approval-supplier-grid"></div>
-            <article class="panel approval-note-card"><label class="field-label">Observação da aprovação<textarea class="quote-textarea" id="approval-notes" placeholder="Ex.: melhor prazo, condição negociada ou aprovação do responsável"></textarea></label><button class="button button-primary" id="save-approval">Registrar aprovação</button></article>
-            <div class="step-actions"><button class="button button-secondary" data-next-step="3">← Voltar</button><button class="button button-primary" data-next-step="5">Preparar Ordem de Compra →</button></div>
-          </section>
-
-          <section class="quote-step" data-step-panel="5" hidden>
-            <div class="purchase-layout">
-              <article class="panel purchase-card"><span class="generate-icon">O.C.</span><p class="eyebrow">ORDEM DE COMPRA</p><h2 id="purchase-title">Aguardando fornecedor</h2><p id="purchase-description">Escolha e aprove um fornecedor na etapa anterior.</p><div class="generate-summary" id="purchase-summary"></div><button class="button button-primary full-width" id="generate-purchase-order">Gerar Ordem de Compra</button><a class="button button-download full-width" id="download-purchase-order" hidden>Baixar Ordem de Compra</a><a class="button button-secondary full-width" id="download-map-final" hidden>Baixar mapa em Excel</a><a class="button button-secondary full-width" id="open-google-sheets" href="https://docs.google.com/spreadsheets/" target="_blank" rel="noopener" hidden>Abrir Google Planilhas para importar</a></article>
-              <article class="panel final-preview"><div class="panel-header"><div><p class="eyebrow">RESUMO DA COMPRA</p><h3>Itens com valor no fornecedor escolhido</h3></div><span class="privacy-pill">Pronto para conferência</span></div><div id="purchase-items" class="purchase-items"></div></article>
-            </div>
-            <div class="step-actions"><button class="button button-secondary" data-next-step="4">← Voltar</button><span></span></div>
-          </section>
-        </div>
-      </section>
+      <section class="content quote-view" id="quotes" hidden><div id="quotation-tool"></div></section>
     </main>
   </div>
 
@@ -424,7 +308,8 @@
 
   <script src="web-demo.js?v=1.1.7"></script>
   <script src="data.js?v=1.1.8"></script>
-    <script src="quotes.js?v=1.1.18"></script>
+  <link rel="stylesheet" href="quotation-tool.css?v=2.0.0">
+  <script src="quotation-tool.js?v=2.0.0"></script>
 <link rel="stylesheet" href="work-report.css?v=4">
 <script src="work-report.js?v=3"></script>
 <script src="works.js?v=1.1.22"></script>

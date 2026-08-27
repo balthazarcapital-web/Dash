@@ -10,6 +10,7 @@ import os from "node:os";
 import ExcelJS from "exceljs";
 import pdfParse from "pdf-parse";
 import XLSX from "xlsx";
+import { handleQuotationTool } from "./lib/quotation-api.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const isVercel = Boolean(process.env.VERCEL);
@@ -1491,6 +1492,7 @@ export async function handleRequest(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const parts = url.pathname.split("/").filter(Boolean);
+    if (await handleQuotationTool(req, res, url, { driveFetch, driveConfigured, driveRoots })) return;
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, runtime: isVercel ? "vercel" : "local", driveConnected: driveConfigured(), supabaseConnected: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY), formats: ["pdf", "xlsx", "xls", "csv", "txt", "png", "jpg", "jpeg"] });
     if (url.pathname === "/api/sync/supabase" && req.method === "POST") {
       const input = await bodyJson(req), clientId = String(input.clientId || "deterlimp");
