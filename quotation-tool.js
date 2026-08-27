@@ -17,10 +17,10 @@
   }
   async function run(message, action) {
     if(state.busy)return;state.busy=true;setBusy(message);
-    try {await action()}catch(error){state.toast(error.message);const area=query('[data-feedback]');if(area){area.textContent=error.message;area.hidden=false}}
+    try {await action()}catch(error){state.toast(error.message);let area=query('[data-feedback]');const dialog=document.querySelector('#qt-dialog[open]');if(dialog){area=dialog.querySelector('[data-dialog-feedback]');if(!area){area=document.createElement('div');area.dataset.dialogFeedback='';area.className='qt-feedback';area.setAttribute('role','alert');dialog.querySelector('.qt-dialog-body').prepend(area)}}if(area){area.textContent=error.message;area.hidden=false}}
     finally {state.busy=false;setBusy('');}
   }
-  function setBusy(message) { const banner=query('[data-progress]');if(banner){banner.hidden=!message;banner.textContent=message;}const controls=[...root().querySelectorAll('button,input,textarea,select'),document.querySelector('#client-select')].filter(Boolean);controls.forEach(el=>{if(message){if(el.dataset.wasDisabled===undefined)el.dataset.wasDisabled=el.disabled?'1':'0';el.disabled=true}else{el.disabled=el.dataset.wasDisabled==='1';delete el.dataset.wasDisabled}}); }
+  function setBusy(message) { const banner=query('[data-progress]');if(banner){banner.hidden=!message;banner.textContent=message;}const controls=[...root().querySelectorAll('button,input,textarea,select'),...document.querySelectorAll('#qt-dialog button,#qt-dialog input,#qt-dialog textarea,#qt-dialog select'),document.querySelector('#client-select')].filter(Boolean);controls.forEach(el=>{if(message){if(el.dataset.wasDisabled===undefined)el.dataset.wasDisabled=el.disabled?'1':'0';el.disabled=true}else{el.disabled=el.dataset.wasDisabled==='1';delete el.dataset.wasDisabled}}); }
   function btn(label,action,extra='',primary=false) {return `<button type="button" class="qt-button ${primary?'qt-primary':''}" data-action="${action}" ${extra}>${label}</button>`}
   function input(label,field,value='',extra='') {return `<label>${label}<input data-field="${field}" value="${esc(value)}" ${extra}></label>`}
   function render() {
