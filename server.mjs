@@ -11,6 +11,7 @@ import ExcelJS from "exceljs";
 import pdfParse from "pdf-parse";
 import XLSX from "xlsx";
 import { handleQuotationTool } from "./lib/quotation-api.mjs";
+import { createRentalService } from "./lib/rental-api.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const isVercel = Boolean(process.env.VERCEL);
@@ -1488,10 +1489,19 @@ async function serveFile(res, filePath, downloadName = "") {
   res.writeHead(200, headers); fsSync.createReadStream(filePath).pipe(res);
 }
 
+const rentalService = createRentalService({driveFetch, spreadsheetBases, driveRoots});
 export async function handleRequest(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const parts = url.pathname.split("/").filter(Boolean);
+    if (url.pathname === '/api/rentals') {
+      if (!driveConfigured()) return json(res,503,{error:'Conecte o Google no servidor para salvar na planilha e no Drive. O rascunho foi preservado.'});
+      try {
+        if(req.method==='GET') return json(res,200,{rows:await rentalService.list(url.searchParams.get('clientId'))});
+        if(req.method==='POST') {const input=await bodyJson(req);return json(res,200,{row:await rentalService.save(input.clientId,input.rental)});}
+        return json(res,405,{error:'Método não permitido.'});
+      } catch(error) {return json(res,502,{error:error.message});}
+    }
     if (await handleQuotationTool(req, res, url, { driveFetch, driveConfigured, driveRoots })) return;
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, runtime: isVercel ? "vercel" : "local", driveConnected: driveConfigured(), supabaseConnected: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY), formats: ["pdf", "xlsx", "xls", "csv", "txt", "png", "jpg", "jpeg"] });
     if (url.pathname === "/api/sync/supabase" && req.method === "POST") {
