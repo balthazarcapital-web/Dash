@@ -1,0 +1,419 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="description" content="Dashboard multi-cliente para análise de pedidos, cotações e controle de notas fiscais.">
+  <title>Gestão de obras | Controle de pedidos</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="styles.css?v=1.1.9">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <a class="brand" href="#overview" aria-label="Voltar à visão geral">
+        <span class="brand-mark" aria-hidden="true"><span></span><span></span><span></span></span>
+        <span><strong id="brand-client-name">DETERLIMP</strong><small>Gestão de obras</small></span>
+      </a>
+      <label class="client-switcher">
+        <span>Cliente ativo</span>
+        <select id="client-select" aria-label="Selecionar cliente"></select>
+      </label>
+      <nav class="nav" aria-label="Navegação principal">
+        <a class="nav-link active" href="#overview" data-section="overview"><span data-icon="grid"></span>Visão geral</a>
+        <a class="nav-link" href="#work" data-section="work"><span data-icon="building"></span>Obras</a>
+        <a class="nav-link" href="#orders" data-section="orders"><span data-icon="clipboard"></span>Pedidos <b id="nav-order-count">0</b></a>
+        <a class="nav-link" href="#quotes" data-section="quotes"><span data-icon="layers"></span>Cotações <b id="nav-quote-count">0</b></a>
+        <a class="nav-link" href="#fiscal" data-section="fiscal"><span data-icon="receipt"></span>Notas fiscais <b id="nav-nf-count">0</b></a>
+        <a class="nav-link" href="#financial" data-section="financial"><span data-icon="wallet"></span>Financeiro</a>
+      </nav>
+      <div class="sidebar-footer">
+        <span class="source-dot" id="source-dot"></span>
+        <div><strong id="source-label">Carregando base</strong><small id="source-detail">Google Sheets</small></div>
+        <span class="version-badge" data-dash-version>v1.1.6</span>
+      </div>
+    </aside>
+    <button class="sidebar-overlay" id="sidebar-overlay" aria-label="Fechar menu" hidden></button>
+
+    <main class="main">
+      <header class="topbar">
+        <button class="icon-button menu-button" id="menu-button" aria-label="Abrir menu" aria-expanded="false"><span data-icon="menu"></span></button>
+        <div class="page-heading">
+          <p>OBRA <span id="heading-client-name">/ DETERLIMP</span></p>
+          <h1 id="page-title">Central de pedidos</h1>
+        </div>
+        <div class="topbar-actions" id="topbar-actions">
+          <button class="button button-report" id="report-button" aria-label="Gerar relatório"><span data-icon="file"></span><span class="desktop-label">Gerar relatório</span></button>
+          <button class="button button-secondary" id="export-button"><span data-icon="download"></span><span class="desktop-label">Exportar</span></button>
+          <button class="button button-primary" id="sync-button"><span data-icon="refresh"></span><span class="desktop-label">Atualizar base</span></button>
+        </div>
+      </header>
+
+      <div class="content" id="overview">
+        <section class="welcome-row">
+          <div><h2>Bom dia, equipe.</h2><p>Acompanhe compras, entregas e documentos fiscais da obra.</p></div>
+          <div class="period-control" role="group" aria-label="Período de análise">
+            <button class="period active" data-period="all">Todo período</button>
+            <button class="period" data-period="30">30 dias</button>
+            <button class="period" data-period="7">7 dias</button>
+          </div>
+        </section>
+
+        <section class="kpi-grid" aria-label="Indicadores principais">
+          <article class="kpi-card kpi-dark">
+            <div class="kpi-top"><span class="kpi-icon"><span data-icon="clipboard"></span></span><span class="kpi-trend" id="orders-context">Base completa</span></div>
+            <p>Pedidos registrados</p><strong id="kpi-orders">0</strong><small id="kpi-orders-detail">0 em andamento</small>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-top"><span class="kpi-icon lime"><span data-icon="coins"></span></span><span class="kpi-trend positive">Faturado</span></div>
+            <p>Valor dos pedidos</p><strong id="kpi-value">R$ 0</strong><small id="kpi-value-detail">0 pedidos com valor</small>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-top"><span class="kpi-icon amber"><span data-icon="receipt"></span></span><span class="kpi-trend warning">Ação necessária</span></div>
+            <p>Notas fiscais pendentes</p><strong id="kpi-nf">0</strong><small id="kpi-nf-detail">Pedidos entregues/faturados</small>
+          </article>
+          <article class="kpi-card">
+            <div class="kpi-top"><span class="kpi-icon blue"><span data-icon="calendar"></span></span><span class="kpi-trend" id="payment-trend">Financeiro</span></div>
+            <p>Pagamentos pendentes</p><strong id="kpi-payments">0</strong><small id="kpi-payment-detail">R$ 0 em aberto</small>
+          </article>
+        </section>
+
+        <section class="alert-strip" id="financial" aria-live="polite">
+          <span class="alert-icon"><span data-icon="alert"></span></span>
+          <div><strong id="alert-title">Atenção financeira</strong><p id="alert-text">Verificando pendências...</p></div>
+          <button id="view-pending">Ver pendências <span aria-hidden="true">→</span></button>
+        </section>
+
+        <section class="dashboard-grid">
+          <article class="panel status-panel">
+            <div class="panel-header"><div><p class="eyebrow">FLUXO DE COMPRAS</p><h3>Pedidos por status</h3></div><span class="panel-total" id="status-total">0 pedidos</span></div>
+            <div class="donut-layout">
+              <div class="donut" id="status-donut" role="img" aria-label="Distribuição de pedidos por status"><div><strong id="donut-value">0</strong><span>pedidos</span></div></div>
+              <div class="legend" id="status-legend"></div>
+            </div>
+          </article>
+          <article class="panel category-panel">
+            <div class="panel-header"><div><p class="eyebrow">ORÇAMENTO</p><h3>Valor por categoria</h3></div><button class="text-button" id="category-toggle">Ver quantidade</button></div>
+            <div class="bar-chart" id="category-chart" aria-label="Valor dos pedidos por categoria"></div>
+          </article>
+          <article class="panel attention-panel" id="fiscal">
+            <div class="panel-header"><div><p class="eyebrow">CONTROLE FISCAL</p><h3>Exigem atenção</h3></div><span class="count-badge" id="attention-count">0</span></div>
+            <div class="attention-list" id="attention-list"></div>
+            <button class="full-button" id="all-pending">Ver todas as pendências</button>
+          </article>
+        </section>
+
+        <section class="panel orders-panel" id="orders">
+          <div class="panel-header table-heading">
+            <div><p class="eyebrow">OPERAÇÃO</p><h3 id="orders-heading">Pedidos da obra</h3></div>
+            <div class="table-actions"><label class="search-field"><span data-icon="search"></span><input id="search-input" type="search" placeholder="Buscar pedido, fornecedor ou NF" aria-label="Buscar pedidos"></label><button class="filter-toggle" id="filter-toggle"><span data-icon="filter"></span>Filtros <b id="filter-count">0</b></button></div>
+          </div>
+          <div class="filters" id="filters" aria-label="Filtros da tabela">
+            <label>Status<select id="status-filter"><option value="">Todos os status</option></select></label>
+            <label>Categoria<select id="category-filter"><option value="">Todas as categorias</option></select></label>
+            <label>Nota fiscal<select id="nf-filter"><option value="">Todas</option><option value="with">Com NF</option><option value="without">Sem NF</option></select></label>
+            <button id="clear-filters">Limpar filtros</button>
+          </div>
+          <div class="active-filter-bar" id="active-filter-bar" hidden>
+            <span><strong>Filtro ativo:</strong> <span id="active-filter-label"></span></span>
+            <button id="clear-active-filter">Mostrar todos</button>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead><tr><th>Pedido</th><th>Descrição</th><th>Categoria</th><th>Status</th><th>Fornecedor</th><th>Nota fiscal</th><th>Valor</th><th></th></tr></thead>
+              <tbody id="orders-body"></tbody>
+            </table>
+          </div>
+          <div class="table-footer"><span id="table-summary">0 pedidos</span><div class="pagination"><button id="prev-page" aria-label="Página anterior">←</button><span id="page-label">1 / 1</span><button id="next-page" aria-label="Próxima página">→</button></div></div>
+        </section>
+      </div>
+
+      <section class="content work-view" id="work" hidden>
+        <header class="work-hero">
+          <div><p class="eyebrow">GESTÃO DA EXECUÇÃO</p><h2 id="work-title">Informações da obra</h2><p>Acompanhe avanço físico, documentos, responsáveis e próximas ações.</p></div>
+          <div class="work-save"><span class="work-status" id="work-status">Planejamento</span><small id="work-save-status">Carregando...</small></div>
+        </header>
+
+        <nav class="work-tabs" aria-label="Áreas da gestão da obra">
+          <button class="active" data-work-tab="overview">Visão da obra</button>
+          <button data-work-tab="budget">Orçamento <b id="work-budget-tab-count">0%</b></button>
+          <button data-work-tab="documents">Documentos <b id="work-doc-tab-count">0</b></button>
+          <button data-work-tab="journal">Diário de obra <b id="work-journal-count">0</b></button>
+        </nav>
+
+        <div data-work-tab-panel="overview">
+        <section class="work-kpis" aria-label="Resumo executivo da obra">
+          <article class="work-progress-card"><div class="work-progress-ring" id="work-progress-ring"><strong id="work-progress">0%</strong></div><div><span>PROGRESSO GERAL</span><strong id="work-current-stage">Ainda não iniciado</strong><small id="work-progress-note">Atualizado pelos custos realizados</small></div></article>
+          <article class="work-kpi"><span>Prazo planejado</span><strong id="work-deadline">Não definido</strong><small id="work-date-range">Cadastre as datas da obra</small></article>
+          <article class="work-kpi"><span>Documentos</span><strong id="work-doc-kpi">0 pendentes</strong><small id="work-doc-detail">Checklist em dia</small></article>
+          <article class="work-kpi"><span>Próximas ações</span><strong id="work-task-kpi">0 abertas</strong><small id="work-task-detail">Nenhuma ação atrasada</small></article>
+        </section>
+
+        <section class="work-alert" id="work-alert" hidden></section>
+
+        <article class="panel work-plan-card">
+          <div class="panel-header"><div><p class="eyebrow">PLANEJADO × REALIZADO</p><h3>Ritmo atual da obra</h3></div><span class="work-deviation" id="work-deviation">No prazo</span></div>
+          <div class="work-plan-bars"><div><span>Planejado até hoje <b id="work-planned-value">0%</b></span><i><em id="work-planned-bar"></em></i></div><div><span>Executado <b id="work-actual-value">0%</b></span><i><em id="work-actual-bar"></em></i></div></div>
+          <small id="work-plan-note">Cadastre as datas das etapas para comparar o avanço.</small>
+        </article>
+
+        <article class="panel work-budget-overview" id="work-budget-overview" hidden>
+          <div class="panel-header"><div><p class="eyebrow">CONTROLE FINANCEIRO</p><h3>Orçado × realizado</h3></div><button class="text-button" data-open-budget>Ver orçamento detalhado →</button></div>
+          <div class="budget-overview-grid" id="budget-overview-grid"></div>
+        </article>
+
+        <div class="work-main-grid">
+          <article class="panel work-details-panel">
+            <div class="panel-header"><div><p class="eyebrow">IDENTIFICAÇÃO</p><h3>Dados gerais</h3></div><button class="text-button" id="work-details-toggle">Editar</button></div>
+            <div class="work-details-summary" id="work-details-summary"></div>
+            <div class="work-details-form" id="work-details-form" hidden>
+              <div class="form-grid">
+                <label class="field-label">Nome da obra<input data-work-detail="name"></label>
+                <label class="field-label">Cliente<input data-work-detail="client"></label>
+                <label class="field-label span-2">Endereço<input data-work-detail="address"></label>
+                <label class="field-label">Tipo de obra<input data-work-detail="type"></label>
+                <label class="field-label">Situação<select data-work-detail="status"><option>Planejamento</option><option>Em andamento</option><option>Pausada</option><option>Concluída</option></select></label>
+                <label class="field-label">Engenheiro responsável<input data-work-detail="engineer"></label>
+                <label class="field-label">Responsável pela obra<input data-work-detail="manager"></label>
+                <label class="field-label">Início planejado<input type="date" data-work-detail="plannedStart"></label>
+                <label class="field-label">Término planejado<input type="date" data-work-detail="plannedEnd"></label>
+                <label class="field-label span-2">Descrição<textarea data-work-detail="description" rows="3"></textarea></label>
+              </div>
+            </div>
+          </article>
+
+          <article class="panel work-phases-panel">
+            <div class="panel-header"><div><p class="eyebrow">AVANÇO FÍSICO</p><h3>Etapas da obra</h3></div><button class="text-button" id="work-add-phase">＋ Adicionar etapa</button></div>
+            <div class="phase-weight-note" id="phase-weight-note"></div>
+            <div class="work-phases" id="work-phases"></div>
+          </article>
+        </div>
+        </div>
+
+        <div data-work-tab-panel="budget" hidden>
+          <section id="work-budget-content">
+            <div class="budget-empty panel"><p class="eyebrow">ORÇAMENTO DA OBRA</p><h3>Nenhum orçamento cadastrado</h3><p>Quando uma planilha-base for vinculada a este cliente, a análise planejado × realizado aparecerá aqui.</p></div>
+          </section>
+        </div>
+
+        <div data-work-tab-panel="documents" hidden>
+        <article class="panel work-documents-panel">
+          <div class="panel-header"><div><p class="eyebrow">CONTROLE DOCUMENTAL</p><h3>Documentos da obra</h3></div><div class="work-doc-tools"><input type="search" id="work-document-search" placeholder="Buscar documento" aria-label="Buscar documentos"><button class="button button-secondary" id="work-add-document">＋ Adicionar documento</button></div></div>
+          <p class="work-disclaimer">Checklist operacional. Confirme as exigências específicas com os responsáveis técnico e jurídico.</p>
+          <div class="work-documents" id="work-documents"></div>
+        </article>
+        </div>
+
+        <div data-work-tab-panel="overview">
+        <div class="work-secondary-grid">
+          <article class="panel">
+            <div class="panel-header"><div><p class="eyebrow">PRÓXIMAS AÇÕES</p><h3>Pendências</h3></div><button class="text-button" id="work-add-task">＋ Adicionar</button></div>
+            <div class="work-task-list" id="work-tasks"></div>
+          </article>
+          <article class="panel">
+            <div class="panel-header"><div><p class="eyebrow">EQUIPE</p><h3>Contatos importantes</h3></div><button class="text-button" id="work-add-contact">＋ Adicionar</button></div>
+            <div class="work-contact-list" id="work-contacts"></div>
+          </article>
+        </div>
+        </div>
+
+        <div data-work-tab-panel="journal" hidden>
+          <div class="work-journal-grid">
+            <article class="panel work-journal-form">
+              <div class="panel-header"><div><p class="eyebrow">NOVO REGISTRO</p><h3>Relatório diário da obra</h3></div><span class="privacy-pill">Salvo localmente</span></div>
+              <div class="journal-form-grid">
+                <label>Data<input type="date" id="journal-date"></label>
+                <label>Clima<select id="journal-weather"><option>Ensolarado</option><option>Nublado</option><option>Chuva leve</option><option>Chuva forte</option><option>Vento forte</option></select></label>
+                <label>Jornada<select id="journal-workday"><option>Normal</option><option>Parcial</option><option>Paralisada</option></select></label>
+                <label>Horas de chuva<input type="number" min="0" max="24" step="0.5" id="journal-rain-hours" value="0"></label>
+                <label>Efetivo no dia<input type="number" min="0" id="journal-workforce" value="0"></label>
+                <label class="span-2">Empreiteiros/equipes ausentes<input id="journal-absent" placeholder="Informe quem faltou e o impacto"></label>
+                <label class="span-2">Serviços executados<textarea id="journal-activities" rows="4" placeholder="O que foi realizado hoje?"></textarea></label>
+                <label class="span-2">Ocorrências e impedimentos<textarea id="journal-occurrences" rows="3" placeholder="Chuva, falta de material, atraso, segurança..."></textarea></label>
+                <label class="span-2">Decisões tomadas<textarea id="journal-decisions" rows="2"></textarea></label>
+                <label class="span-2">Próximos passos<textarea id="journal-next" rows="2"></textarea></label>
+              </div>
+              <button class="button button-primary full-width" id="journal-save">Adicionar ao diário</button>
+            </article>
+            <article class="panel work-journal-summary">
+              <div class="panel-header"><div><p class="eyebrow">HISTÓRICO</p><h3>Registros da obra</h3></div><span class="panel-total" id="journal-summary-count">0 registros</span></div>
+              <div class="journal-insights" id="journal-insights"></div>
+              <div class="work-journal-list" id="work-journal-list"></div>
+            </article>
+          </div>
+        </div>
+      </section>
+
+      <section class="content quote-view" id="quotes" hidden>
+        <header class="quote-hero">
+          <div>
+            <p class="eyebrow">CENTRAL DE COTAÇÕES</p>
+            <h2>Transforme propostas em um mapa pronto</h2>
+            <p>Importe o pedido, reúna até cinco fornecedores e confira cada divergência antes de gerar o Excel.</p>
+          </div>
+          <div class="quote-hero-actions">
+            <button class="button button-secondary" id="quote-history-toggle"><span data-icon="clock"></span>Histórico</button>
+            <button class="button button-primary" id="quote-new"><span aria-hidden="true">＋</span>Nova cotação</button>
+          </div>
+        </header>
+
+        <div class="local-status" id="quote-service-status" role="status">
+          <span class="source-dot"></span><strong>Verificando serviço local...</strong><small>Seus arquivos permanecem neste computador.</small>
+        </div>
+
+        <aside class="quote-history panel" id="quote-history" hidden>
+          <div class="panel-header"><div><p class="eyebrow">HISTÓRICO LOCAL</p><h3>Mapas e rascunhos</h3></div><button class="icon-button" id="quote-history-close" aria-label="Fechar histórico">×</button></div>
+          <div id="quote-history-list" class="quote-history-list"></div>
+        </aside>
+
+        <div class="quote-empty panel" id="quote-empty">
+          <span class="quote-empty-icon">MC</span>
+          <h3>Comece uma nova cotação</h3>
+          <p>O sistema guarda rascunhos automaticamente e avisa quando quantidades ou itens não correspondem ao pedido.</p>
+          <button class="button button-primary" data-create-quote>Iniciar mapa de cotação</button>
+        </div>
+
+        <div class="quote-workspace" id="quote-workspace" hidden>
+          <div class="quote-workspace-top">
+            <div><span class="quote-status-chip" id="quote-status-chip">Rascunho</span><h2 id="quote-workspace-title">Nova cotação</h2><p id="quote-save-status">Salvo localmente</p></div>
+            <button class="text-button" id="quote-close-workspace">Fechar cotação</button>
+          </div>
+
+          <nav class="quote-stepper quote-stepper-five" aria-label="Etapas do processo de cotação">
+            <button class="active" data-quote-step="1"><b>1</b><span>Pedido<small>Itens solicitados</small></span></button>
+            <button data-quote-step="2"><b>2</b><span>Arquivos<small>Drive, PDF ou WhatsApp</small></span></button>
+            <button data-quote-step="3"><b>3</b><span>Mapa<small>Comparação item a item</small></span></button>
+            <button data-quote-step="4"><b>4</b><span>Escolha<small>Fornecedor aprovado</small></span></button>
+            <button data-quote-step="5"><b>5</b><span>Ordem de Compra<small>Documento final</small></span></button>
+          </nav>
+
+          <section class="quote-step active" data-step-panel="1">
+            <div class="quote-grid quote-grid-request">
+              <article class="panel quote-form-card">
+                <div class="panel-header"><div><p class="eyebrow">IDENTIFICAÇÃO</p><h3>Dados do pedido</h3></div><span class="step-ok" id="request-ready">Pendente</span></div>
+                <label class="field-label">Selecionar pedido já registrado<select id="quote-existing-order"><option value="">Selecione um pedido</option></select></label>
+                <div class="form-grid">
+                  <label class="field-label">Número do pedido<input id="request-number" autocomplete="off"></label>
+                  <label class="field-label">Categoria<input id="request-category" autocomplete="off"></label>
+                  <label class="field-label">Obra / centro de custo<input id="request-work" value="Deterlimp"></label>
+                  <label class="field-label">Solicitante<input id="request-requester"></label>
+                  <label class="field-label">Data do pedido<input id="request-date" type="date"></label>
+                  <label class="field-label">Data da necessidade<input id="request-needed" type="date"></label>
+                </div>
+              </article>
+              <article class="panel quote-import-card">
+                <div class="panel-header"><div><p class="eyebrow">IMPORTAR PEDIDO</p><h3>PDF, Excel, imagem ou texto</h3></div><span class="privacy-pill">Processamento local</span></div>
+                <label class="upload-zone" id="request-dropzone">
+                  <input type="file" id="request-file" accept=".pdf,.xlsx,.xls,.csv,.txt,.png,.jpg,.jpeg" hidden>
+                  <span class="upload-icon">↑</span><strong>Arraste o pedido ou escolha um arquivo</strong><small>PDF, Excel, CSV, JPG ou PNG • até 30 MB</small>
+                </label>
+                <div class="or-divider"><span>ou cole os itens</span></div>
+                <textarea id="request-text" class="quote-textarea" placeholder="Ex.: 1 | 8 | UN | ENGATE FLEXÍVEL DE 40 CM"></textarea>
+                <button class="button button-secondary full-width" id="request-import">Ler pedido</button>
+                <div class="import-feedback" id="request-import-feedback" hidden></div>
+              </article>
+            </div>
+            <article class="panel quote-items-card">
+              <div class="panel-header"><div><p class="eyebrow">MATERIAIS</p><h3>Itens reconhecidos</h3></div><button class="text-button" id="request-add-item">＋ Adicionar item</button></div>
+              <div class="quote-table-wrap"><table class="quote-edit-table"><thead><tr><th>Item</th><th>Quantidade</th><th>Un.</th><th>Descrição do material</th><th>Necessidade</th><th></th></tr></thead><tbody id="request-items-body"></tbody></table></div>
+            </article>
+            <div class="step-actions"><span></span><button class="button button-primary" data-next-step="2">Continuar para orçamentos →</button></div>
+          </section>
+
+          <section class="quote-step" data-step-panel="2" hidden>
+            <div class="drive-import-card panel">
+              <div><span class="drive-badge">DRIVE</span><div><strong>Buscar arquivos do pedido</strong><p>Localiza o pedido e os orçamentos na pasta do cliente, sem depender de planilha-índice.</p></div></div>
+              <button class="button button-primary" id="quote-drive-search">Buscar na pasta do pedido</button>
+              <div class="import-feedback" id="quote-drive-feedback" hidden></div>
+            </div>
+            <div class="step-intro"><div><p class="eyebrow">ARQUIVOS E PROPOSTAS</p><h2>Orçamentos dos fornecedores</h2><p>Importe PDF/Excel/imagem ou cole a cotação recebida por texto ou WhatsApp.</p></div><button class="button button-primary" id="supplier-add">＋ Adicionar fornecedor</button></div>
+            <div class="supplier-grid" id="supplier-grid"></div>
+            <div class="step-actions"><button class="button button-secondary" data-next-step="1">← Voltar</button><button class="button button-primary" data-next-step="3">Conferir comparação →</button></div>
+          </section>
+
+          <section class="quote-step" data-step-panel="3" hidden>
+            <div class="step-intro"><div><p class="eyebrow">CONFERÊNCIA OBRIGATÓRIA</p><h2>Compare item por item</h2><p>O pedido do engenheiro é a referência. Divergências precisam ser marcadas como verificadas.</p></div><div class="review-counter" id="review-counter"><strong>0</strong><span>pendências</span></div></div>
+            <div class="supplier-review-summary" id="supplier-review-summary"></div>
+            <div class="divergence-list" id="divergence-list"></div>
+            <article class="panel comparison-panel">
+              <div class="panel-header"><div><p class="eyebrow">MAPA PRÉVIO</p><h3>Valores relacionados</h3></div><span class="panel-total" id="comparison-total-label"></span></div>
+              <div class="quote-table-wrap"><table class="comparison-table" id="comparison-table"></table></div>
+            </article>
+            <div class="unmatched-panel" id="unmatched-panel" hidden></div>
+            <div class="map-generation-bar panel"><div><strong>Mapa de cotação em Excel</strong><span>Gere o arquivo após conferir as divergências.</span></div><div><div class="generate-warning" id="generate-warning" hidden></div><button class="button button-primary" id="generate-map">Gerar mapa de cotação</button><a class="button button-download" id="download-map" hidden>Baixar Excel</a></div></div>
+            <div class="step-actions"><button class="button button-secondary" data-next-step="2">← Voltar</button><button class="button button-primary" data-next-step="4">Escolher fornecedor →</button></div>
+          </section>
+
+          <section class="quote-step" data-step-panel="4" hidden>
+            <div class="step-intro"><div><p class="eyebrow">APROVAÇÃO</p><h2>Escolha o fornecedor</h2><p>A decisão é humana: registre quem foi aprovado e o motivo da escolha.</p></div><span class="privacy-pill">Sem escolha automática</span></div>
+            <div class="approval-grid" id="approval-supplier-grid"></div>
+            <article class="panel approval-note-card"><label class="field-label">Observação da aprovação<textarea class="quote-textarea" id="approval-notes" placeholder="Ex.: melhor prazo, condição negociada ou aprovação do responsável"></textarea></label><button class="button button-primary" id="save-approval">Registrar aprovação</button></article>
+            <div class="step-actions"><button class="button button-secondary" data-next-step="3">← Voltar</button><button class="button button-primary" data-next-step="5">Preparar Ordem de Compra →</button></div>
+          </section>
+
+          <section class="quote-step" data-step-panel="5" hidden>
+            <div class="purchase-layout">
+              <article class="panel purchase-card"><span class="generate-icon">O.C.</span><p class="eyebrow">ORDEM DE COMPRA</p><h2 id="purchase-title">Aguardando fornecedor</h2><p id="purchase-description">Escolha e aprove um fornecedor na etapa anterior.</p><div class="generate-summary" id="purchase-summary"></div><button class="button button-primary full-width" id="generate-purchase-order">Gerar Ordem de Compra</button><a class="button button-download full-width" id="download-purchase-order" hidden>Baixar Ordem de Compra</a><a class="button button-secondary full-width" id="download-map-final" hidden>Baixar mapa em Excel</a><a class="button button-secondary full-width" id="open-google-sheets" href="https://docs.google.com/spreadsheets/" target="_blank" rel="noopener" hidden>Abrir Google Planilhas para importar</a></article>
+              <article class="panel final-preview"><div class="panel-header"><div><p class="eyebrow">RESUMO DA COMPRA</p><h3>Itens com valor no fornecedor escolhido</h3></div><span class="privacy-pill">Pronto para conferência</span></div><div id="purchase-items" class="purchase-items"></div></article>
+            </div>
+            <div class="step-actions"><button class="button button-secondary" data-next-step="4">← Voltar</button><span></span></div>
+          </section>
+        </div>
+      </section>
+    </main>
+  </div>
+
+  <div class="modal-backdrop" id="report-backdrop" hidden></div>
+  <section class="report-modal" id="report-modal" role="dialog" aria-modal="true" aria-labelledby="report-title" aria-hidden="true">
+    <div class="report-modal-header">
+      <div><p class="eyebrow">RELATÓRIO FISCAL</p><h2 id="report-title">Gerar planilha de notas fiscais</h2></div>
+      <button class="icon-button" id="report-close" aria-label="Fechar relatório">×</button>
+    </div>
+    <p class="report-description">Escolha o período considerando a data de emissão da nota fiscal.</p>
+    <div class="report-mode" role="group" aria-label="Forma de selecionar o período">
+      <button class="active" data-report-mode="month">Por mês</button>
+      <button data-report-mode="range">Período personalizado</button>
+    </div>
+    <div class="report-fields">
+      <label id="month-field">Mês de emissão<input type="month" id="report-month" value="2026-08"></label>
+      <div class="range-fields" id="range-fields" hidden>
+        <label>Data inicial<input type="date" id="report-start" value="2026-08-01"></label>
+        <label>Data final<input type="date" id="report-end" value="2026-08-31"></label>
+      </div>
+    </div>
+    <div class="report-summary">
+      <div><span>Notas encontradas</span><strong id="report-count">0</strong></div>
+      <div><span>Valor total</span><strong id="report-total">R$ 0,00</strong></div>
+    </div>
+    <div class="report-preview">
+      <div class="report-preview-heading"><strong>Prévia da planilha</strong><span id="report-period-label"></span></div>
+      <div class="report-table-wrap">
+        <table>
+          <thead><tr><th>Data de emissão</th><th>Número da NF</th><th>Fornecedor</th><th>Valor</th></tr></thead>
+          <tbody id="report-body"></tbody>
+        </table>
+      </div>
+      <small id="report-preview-note"></small>
+    </div>
+    <div class="report-actions">
+      <button class="button button-secondary" id="report-cancel">Cancelar</button>
+      <button class="button button-primary" id="report-download"><span data-icon="download"></span>Baixar planilha</button>
+    </div>
+  </section>
+
+  <div class="drawer-backdrop" id="drawer-backdrop" hidden></div>
+  <aside class="detail-drawer" id="detail-drawer" aria-label="Detalhes do pedido" aria-hidden="true">
+    <div class="drawer-header"><div><p class="eyebrow">DETALHES DO PEDIDO</p><h2 id="drawer-title">Pedido</h2></div><button class="icon-button" id="drawer-close" aria-label="Fechar detalhes">×</button></div>
+    <div id="drawer-content"></div>
+  </aside>
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+
+  <script src="web-demo.js?v=1.1.7"></script>
+  <script src="data.js?v=1.1.8"></script>
+  <script src="quotes.js?v=1.1.12"></script>
+  <script src="works.js?v=1.1.6"></script>
+  <script src="app.js?v=1.1.8"></script>
+</body>
+</html>

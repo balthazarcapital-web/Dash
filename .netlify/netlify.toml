@@ -1,0 +1,68 @@
+headersOrigin = "config"
+redirectsOrigin = "config"
+plugins = []
+functionsDirectory = "C:\\Users\\balth\\OneDrive\\Área de Trabalho\\Absolutta\\Dash\\api"
+functionsDirectoryOrigin = "config"
+
+[functions]
+
+[functions."*"]
+
+[build]
+publish = "C:\\Users\\balth\\OneDrive\\Área de Trabalho\\Absolutta\\Dash\\public"
+publishOrigin = "config"
+commandOrigin = "config"
+command = "mkdir -p public/comparativo-cli-inova public/erp-compras && cp index.html styles.css data.js quotes.js works.js app.js web-demo.js works-data.json _headers public/ && cp comparativo-cli-inova/index.html public/comparativo-cli-inova/ && cp erp-compras/index.html public/erp-compras/"
+functions = "C:\\Users\\balth\\OneDrive\\Área de Trabalho\\Absolutta\\Dash\\api"
+
+[build.environment]
+
+[build.processing]
+
+[build.processing.css]
+
+[build.processing.html]
+
+[build.processing.images]
+
+[build.processing.js]
+
+[build.services]
+
+[[headers]]
+for = "/*"
+
+[headers.values]
+X-Content-Type-Options = "nosniff"
+Referrer-Policy = "strict-origin-when-cross-origin"
+Permissions-Policy = "camera=(), microphone=(), geolocation=()"
+
+[[headers]]
+for = "/*.html"
+
+[headers.values]
+Cache-Control = "public, max-age=0, must-revalidate"
+
+[[headers]]
+for = "/*.js"
+
+[headers.values]
+Cache-Control = "public, max-age=3600"
+
+[[headers]]
+for = "/*.css"
+
+[headers.values]
+Cache-Control = "public, max-age=3600"
+
+[[redirects]]
+from = "/api/*"
+to = "/.netlify/functions/index/api/:splat"
+status = 200.0
+force = false
+
+[redirects.query]
+
+[redirects.conditions]
+
+[redirects.headers]
