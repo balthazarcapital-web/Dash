@@ -23,7 +23,7 @@
     root().innerHTML=`<header class="work-hero"><div><p class="eyebrow">CONTROLE DE LOCAÇÕES</p><h2>Locações da obra</h2><p>Pedido, documento de campo e acompanhamento em um só lugar.</p></div><div class="work-hero-actions"><button class="button button-report" data-rm-report>Gerar relatório</button></div></header>
       <section class="rm-sync ${error?'warning':''}" role="status"><div><strong>${loading?'Consultando planilha…':error?'Sincronização indisponível':'Planilha oficial da obra'}</strong><p>${esc(error||'Teste de Locações: salva na aba Respostas ao formulário 1. Número pendente; sem criação de pastas ou arquivos no Drive.')}</p></div><button class="button button-secondary" data-rm-refresh ${loading?'disabled':''}>Atualizar</button></section>
       <p class="rm-success" role="status">${esc(success)}</p><div class="rental-kpis">${stats.kpis.slice(0,3).map(([label,value])=>`<article><span>${esc(label)}</span><strong>${esc(value)}</strong></article>`).join('')}</div>
-      <section class="panel rm-list"><div class="panel-header"><h3>Locações cadastradas</h3><span>${current.length} registros</span></div>${current.map((r,i)=>`<article class="rm-card"><div class="rm-card-head"><div><span class="rm-badge ${r.sync==='local'?'local':''}">${r.sync==='local'?'Somente neste dispositivo':'Na planilha'}</span><h3>${esc(r.item)}</h3><p>${esc(r.supplier||'Fornecedor não informado')}</p></div><button class="button button-secondary" data-rm-edit="${i}">${r.sync==='local'?'Editar / sincronizar':'Editar locação'}</button>${r.sync==='local'?`<button class="button button-danger" data-rm-delete="${i}">Excluir do painel</button>`:''}</div><div class="rm-info"><div><span>Nº documento / locação</span><strong>${esc(r.documentNumber||'Não informado')}</strong><small>MTR, contrato ou comprovante do fornecedor</small></div><div><span>Pedido interno</span><strong>${esc(r.orderNumber||'Pendente de numeração')}</strong></div><div><span>Vencimento da locação</span><strong>${esc(fmt(r.due))}</strong></div><div><span>Valor · ${esc(r.billing||'Não informado')}</span><strong>${esc(money(r.value))}</strong></div></div><footer><span>${esc(r.status)} · Envio: ${esc(fmt(r.sent))} · Troca: ${esc(fmt(r.exchange))}</span>${/^https:\/\/drive.google.com\/drive\/folders\/[\w-]+$/.test(r.folderUrl||'')?`<a href="${esc(r.folderUrl)}" target="_blank" rel="noopener">Abrir pasta no Drive ↗</a>`:'<small>Drive não faz parte deste teste</small>'}</footer></article>`).join('')||'<p class="work-empty">Nenhuma locação carregada. Cadastre uma locação ou atualize a base.</p>'}</section>`;
+      <section class="panel rm-list"><div class="panel-header"><h3>Locações cadastradas</h3><span>${current.length} registros</span></div>${current.map((r,i)=>`<article class="rm-card"><div class="rm-card-head"><div><span class="rm-badge ${r.sync==='local'?'local':''}">${r.sync==='local'?'Somente neste dispositivo':'Na planilha'}</span><h3>${esc(r.item)}</h3><p>${esc(r.supplier||'Fornecedor não informado')}</p></div><button class="button button-secondary" data-rm-edit="${i}">${r.sync==='local'?'Editar / sincronizar':'Editar locação'}</button><button class="button button-danger" data-rm-delete="${i}">Excluir</button></div><div class="rm-info"><div><span>Nº documento / locação</span><strong>${esc(r.documentNumber||'Não informado')}</strong><small>MTR, contrato ou comprovante do fornecedor</small></div><div><span>Pedido interno</span><strong>${esc(r.orderNumber||'Pendente de numeração')}</strong></div><div><span>Vencimento da locação</span><strong>${esc(fmt(r.due))}</strong></div><div><span>Valor · ${esc(r.billing||'Não informado')}</span><strong>${esc(money(r.value))}</strong></div></div><footer><span>${esc(r.status)} · Envio: ${esc(fmt(r.sent))} · Troca: ${esc(fmt(r.exchange))}</span>${/^https:\/\/drive.google.com\/drive\/folders\/[\w-]+$/.test(r.folderUrl||'')?`<a href="${esc(r.folderUrl)}" target="_blank" rel="noopener">Abrir pasta no Drive ↗</a>`:'<small>Drive não faz parte deste teste</small>'}</footer></article>`).join('')||'<p class="work-empty">Nenhuma locação carregada. Cadastre uma locação ou atualize a base.</p>'}</section>`;
     const list=root().querySelector('.rm-list');
     list.insertAdjacentHTML('beforebegin','<div class="rental-tabs"><button type="button" class="active" data-rm-view="list">Lista de locações</button><button type="button" data-rm-view="board">Kanban de pedidos</button></div>');
     const groups=['Solicitado','Entregue','Finalizado'];
@@ -36,7 +36,7 @@
     root().querySelector('[data-rm-refresh]').onclick=()=>load();
     root().querySelector('[data-rm-report]').onclick=()=>window.AreaReports.open('rentals',current,'Todos os registros',{clientName:context.clientName,source:error?'Base local / última leitura disponível':'Planilha da obra + registros locais identificados'});
     root().querySelectorAll('[data-rm-edit]').forEach(b=>{const row=current[Number(b.dataset.rmEdit)];b.disabled=row.sync==='snapshot';b.onclick=()=>openEditor(row);});
-    root().querySelectorAll('[data-rm-delete]').forEach(b=>{const row=current[Number(b.dataset.rmDelete)];b.disabled=row.sync!=='local';b.onclick=()=>deleteRental(row);});
+    root().querySelectorAll('[data-rm-delete]').forEach(b=>{const row=current[Number(b.dataset.rmDelete)];b.disabled=row.sync!=='shared';b.onclick=()=>deleteRental(row);});
     root().querySelectorAll('.rm-card').forEach((card,i)=>{if(current[i].sync==='snapshot'){card.querySelector('.rm-badge').textContent='Retrato da base · sem conexão';card.querySelector('.rm-badge').classList.add('local');}});
   }
   async function load(){
@@ -46,12 +46,11 @@
     finally{if(token===generation){loading=false;render();}}
   }
   async function deleteRental(row){
-    if(row.sync!=='local'||!row.localId)return;
-    if(!window.confirm(`Remover “${row.item}” somente deste painel? A planilha oficial não será alterada.`))return;
+    if(row.sync!=='shared'||!row.id)return;
+    if(!window.confirm(`Excluir a locação “${row.item}” da planilha oficial? Esta ação não pode ser desfeita.`))return;
     try{
-      const locals=localRows().filter(item=>String(item.id)!==String(row.localId));
-      localStorage.setItem('dashboard-rentals-'+context.clientId,JSON.stringify(locals));
-      success=`Locação removida somente dos registros locais deste painel. A planilha oficial não foi alterada.`; render();
+      const hidden=hiddenRows(context.clientId);if(!hidden.includes(row.id))hidden.push(row.id);localStorage.setItem(hiddenKey(context.clientId),JSON.stringify(hidden));
+      success=`Locação removida somente da visão do painel. A planilha oficial não foi alterada.`; render();
     }catch(e){error=e.message;render();}
   }
   function openEditor(row){
