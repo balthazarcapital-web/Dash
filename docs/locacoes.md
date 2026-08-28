@@ -6,11 +6,10 @@ O módulo em `index.html` usa `/api/rentals` para consultar e salvar na aba de p
 
 - `GET /api/rentals?clientId=…`: pedidos de categoria Locação, identidade, revisão e campos específicos.
 - `POST /api/rentals`: `{clientId, rental}`. `rental.id` é estável entre tentativas; edições incluem `revision` e, para pedidos antigos, `reference` (número + descrição original).
-- Piloto limitado à aba Locações: o número interno fica vazio, pendente de numeração. Não gera `LOC-…` e preserva números existentes ao editar. O número do fornecedor/MTR é texto; zeros à esquerda são preservados.
+- O número do fornecedor/MTR é texto, independente do pedido interno `LOC-…`. Zeros à esquerda são preservados.
 - A coluna adicional `Controle de locação` guarda os dados específicos em JSON: ID, documento, envio, troca, vencimento operacional, devolução, preço, periodicidade, situação e vínculo da pasta. Não reutiliza NF ou vencimento de boleto para esses campos.
-- Novos pedidos recebem descrição, categoria Locação, solicitante obrigatório, fornecedor, data de necessidade, observações, valor e data/hora do cadastro em America/Sao_Paulo. A data de envio da locação é independente da data do cadastro. A aba deve ser Respostas ao formulário 1, nunca uma aba auxiliar.
-- Editar preço da locação altera seu preço operacional, sem sobrescrever o valor financeiro histórico do pedido. Observações da locação editada ficam no controle específico, preservando ocorrências anteriores da base oficial.
-- Não há chamadas à API do Drive neste piloto. Pastas, arquivo oficial e numeração ficam para uma etapa posterior. Links preexistentes são preservados.
+- Novos pedidos recebem valor e data na planilha; editar preço da locação altera seu preço operacional, sem sobrescrever o valor financeiro histórico do pedido.
+- Pastas são criadas na raiz configurada da obra com `appProperties.rentalId`, permitindo recuperação após falhas. Uma pasta criada antes de uma falha na planilha é conservada e reutilizada.
 - O servidor relê a planilha antes de confirmar sucesso. A fila por obra evita gravações simultâneas no mesmo processo. Não é um bloqueio distribuído entre instâncias: para grande volume concorrente, adotar armazenamento transacional antes de escalar escritores.
 
 ## Registros anteriores
@@ -19,9 +18,9 @@ Locações locais são mantidas na chave existente `dashboard-rentals-{clientId}
 
 ## Ambiente
 
-O serviço usa as credenciais Google já previstas pelo servidor: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`. Devem ter acesso de escrita à planilha. Configurar por mecanismo seguro de variáveis do ambiente, nunca colocar tokens em arquivos publicados ou mensagens. Mudar o acesso do Web App Apps Script não configura essas credenciais. Esta implementação usa a mesma autenticação do endpoint de observações `/api/order-update`.
+O serviço usa as credenciais Google já previstas pelo servidor: `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`. Devem ter acesso de escrita à planilha e à pasta da obra. Configurar por mecanismo seguro de variáveis do ambiente, nunca colocar tokens em arquivos publicados ou mensagens.
 
-Sem configuração, a API responde 503. O painel mantém rascunhos e exibe o bloqueio. Não usar dados fictícios em planilhas reais para testes. Os testes automatizados simulam Google Sheets e rejeitam qualquer chamada à API do Drive. O ambiente local verificado estava com `driveConnected: false`; não houve teste de gravação real.
+Sem configuração, a API responde 503. O painel mantém rascunhos e exibe o bloqueio. Não usar dados fictícios em planilhas reais para testes. Os testes automatizados simulam Google Sheets/Drive.
 
 ## Relatórios
 
