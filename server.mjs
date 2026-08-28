@@ -1489,16 +1489,17 @@ async function serveFile(res, filePath, downloadName = "") {
   res.writeHead(200, headers); fsSync.createReadStream(filePath).pipe(res);
 }
 
-const rentalService = createRentalService({driveFetch, spreadsheetBases, driveRoots});
+const rentalService = createRentalService({driveFetch, spreadsheetBases});
 export async function handleRequest(req, res) {
   try {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const parts = url.pathname.split("/").filter(Boolean);
     if (url.pathname === '/api/rentals') {
-      if (!driveConfigured()) return json(res,503,{error:'Conecte o Google no servidor para salvar na planilha e no Drive. O rascunho foi preservado.'});
+      if (!driveConfigured()) return json(res,503,{error:'A conexão Google do servidor não está configurada. Nada foi gravado na planilha; o rascunho foi preservado.'});
       try {
         if(req.method==='GET') return json(res,200,{rows:await rentalService.list(url.searchParams.get('clientId'))});
         if(req.method==='POST') {const input=await bodyJson(req);return json(res,200,{row:await rentalService.save(input.clientId,input.rental)});}
+        if(req.method==='DELETE') {const input=await bodyJson(req);return json(res,200,{result:await rentalService.delete(input.clientId,input.rental)});}
         return json(res,405,{error:'Método não permitido.'});
       } catch(error) {return json(res,502,{error:error.message});}
     }
