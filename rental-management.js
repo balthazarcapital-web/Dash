@@ -7,6 +7,8 @@
   const root=()=>document.querySelector('#rentals');
   const localRows=()=>{try{const saved=JSON.parse(localStorage.getItem('dashboard-rentals-'+context.clientId)||'[]'),statuses=JSON.parse(localStorage.getItem('dashboard-rental-status-'+context.clientId)||'{}');return saved.map((r,localIndex)=>({...r,localIndex,status:statuses[r.id]||r.status}));}catch{return []}};
   const draftKey=(clientId=context.clientId)=> 'rental-draft-'+clientId;
+  const hiddenKey=(clientId=context.clientId)=> 'rental-hidden-'+clientId;
+  const hiddenRows=(clientId=context.clientId)=>{try{return JSON.parse(localStorage.getItem(hiddenKey(clientId))||'[]')}catch{return []}};
   const fmt=v=>window.AreaReports?.formatDate(v)||v||'Não informado';
   async function api(options={}) {const response=await fetch('/api/rentals'+(options.method?'':'?clientId='+encodeURIComponent(context.clientId)),options);const body=await response.json();if(!response.ok)throw new Error(body.error||'Não foi possível sincronizar.');return body;}
   function rows(){
@@ -16,7 +18,7 @@
   }
   function render(){
     if(!context)return;
-    current=rows();
+    current=rows().filter(r=>!hiddenRows(context.clientId).includes(r.id));
     const stats=window.AreaReports.rentalModel(current,'Todos os registros');
     root().innerHTML=`<header class="work-hero"><div><p class="eyebrow">CONTROLE DE LOCAÇÕES</p><h2>Locações da obra</h2><p>Pedido, documento de campo e acompanhamento em um só lugar.</p></div><div class="work-hero-actions"><button class="button button-report" data-rm-report>Gerar relatório</button></div></header>
       <section class="rm-sync ${error?'warning':''}" role="status"><div><strong>${loading?'Consultando planilha…':error?'Sincronização indisponível':'Planilha oficial da obra'}</strong><p>${esc(error||'Teste de Locações: salva na aba Respostas ao formulário 1. Número pendente; sem criação de pastas ou arquivos no Drive.')}</p></div><button class="button button-secondary" data-rm-refresh ${loading?'disabled':''}>Atualizar</button></section>
@@ -47,8 +49,8 @@
     if(row.sync!=='shared'||!row.id)return;
     if(!window.confirm(`Excluir a locação “${row.item}” da planilha oficial? Esta ação não pode ser desfeita.`))return;
     try{
-      await api({method:'DELETE',headers:{'Content-Type':'application/json'},body:JSON.stringify({clientId:context.clientId,rental:{id:row.id,item:row.item,supplier:row.supplier,documentNumber:row.documentNumber,sent:row.sent,due:row.due,exchange:row.exchange,returnedDate:row.returnedDate,status:row.status,billing:row.billing,value:row.value,notes:row.notes,revision:row.revision}})});
-      success=`Locação excluída da planilha oficial.`; await load(); context.onSaved?.();
+      const hidden=hiddenRows(context.clientId);if(!hidden.includes(row.id))hidden.push(row.id);localStorage.setItem(hiddenKey(context.clientId),JSON.stringify(hidden));
+      success=`Locação removida somente da visão do painel. A planilha oficial não foi alterada.`; render();
     }catch(e){error=e.message;render();}
   }
   function openEditor(row){

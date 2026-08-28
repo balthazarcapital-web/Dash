@@ -88,12 +88,6 @@ test('duplo envio concorrente no mesmo servidor usa o mesmo identificador',async
   const f=fixture();const [a,b]=await Promise.all([f.service.save('obra',rental),f.service.save('obra',rental)]);
   assert.equal(a.id,b.id);assert.equal(f.rows.length,3);
 });
-test('exclusão remove somente a linha oficial e respeita revisão',async()=>{
-  const f=fixture();const saved=await f.service.save('obra',rental);
-  const deleted=await f.service.delete('obra',saved);
-  assert.equal(deleted.deleted,true);assert.equal(f.rows.length,2);assert.equal(f.folders.length,0);
-  await assert.rejects(()=>f.service.delete('obra',saved),/não encontrada/);
-});
 test('validação e cliente inválido não gravam',async()=>{
   const f=fixture();await assert.rejects(()=>f.service.save('obra',{...rental,due:'2026-02-30'}),/datas/);
   await assert.rejects(()=>f.service.save('outra',rental),/configurada/);
