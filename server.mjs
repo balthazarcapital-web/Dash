@@ -1499,6 +1499,7 @@ export async function handleRequest(req, res) {
       try {
         if(req.method==='GET') return json(res,200,{rows:await rentalService.list(url.searchParams.get('clientId'))});
         if(req.method==='POST') {const input=await bodyJson(req);return json(res,200,{row:await rentalService.save(input.clientId,input.rental)});}
+        if(req.method==='DELETE') {const input=await bodyJson(req);return json(res,200,{result:await rentalService.delete(input.clientId,input.rental)});}
         return json(res,405,{error:'Método não permitido.'});
       } catch(error) {return json(res,502,{error:error.message});}
     }
