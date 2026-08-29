@@ -23,6 +23,7 @@ const workUploadsDir = path.join(runtimeDir, "work-documents");
 const drClovisBudgetPath = path.join(root, "budget-dr-clovis.json");
 const publishedWorksPath = path.join(root, "works-data.json");
 const outputDir = isVercel ? path.join(runtimeDir, "quote-automation-demo") : path.join(root, "outputs", "quote-automation-demo");
+const weatherCache = new Map();
 const driveRoots = {
   deterlimp: process.env.GOOGLE_DRIVE_ROOT_DETERLIMP || "1F5mfcQ6STExZHtbbCr_QCYV1FUjznw3z",
   carlos_bezerra: process.env.GOOGLE_DRIVE_ROOT_CARLOS_BEZERRA || "1ShnoGQbYwC947ZKN1ziV43az5AJrd94d",
@@ -532,6 +533,36 @@ async function bodyForm(req) {
   const buffer = await bodyBuffer(req);
   const request = new Request(`http://localhost${req.url}`, { method: req.method, headers: req.headers, body: buffer });
   return request.formData();
+}
+
+async function weatherReport(input) {
+  const address = String(input.address || "").trim();
+  const start = String(input.start || "").trim();
+  const end = String(input.end || "").trim();
+  if (!address || !/^\d{4}-\d{2}-\d{2}$/.test(start) || !/^\d{4}-\d{2}-\d{2}$/.test(end)) throw new Error("Informe endereço e período válidos para consultar o clima.");
+  const key = `${address}|${start}|${end}`;
+  const cached = weatherCache.get(key);
+  if (cached && cached.expiresAt > Date.now()) return { ...cached.payload, cached: true };
+  const geoUrl = `https://nominatim.openstreetmap.org/search?format=jsonv2&limit=1&countrycodes=br&q=${encodeURIComponent(`${address}, Brasil`)}`;
+  const geoResponse = await fetch(geoUrl, { headers: { "User-Agent": "Absolutta-Dashboard/1.0 (relatorio gerencial)" } });
+  if (!geoResponse.ok) throw new Error("Não foi possível localizar o endereço da obra.");
+  let geo = (await geoResponse.json())[0];
+  if (!geo) {
+    const fallback = await fetch(`https://geocoding-api.open-meteo.com/v1/search?name=${encodeURIComponent("Capela Velha Curitiba")}&count=1&language=pt&format=json`);
+    const result = (await fallback.json()).results?.[0];
+    if (result) geo = { lat: result.latitude, lon: result.longitude, display_name: `${result.name}, ${result.admin1 || "PR"} (localização aproximada)` };
+  }
+  if (!geo) throw new Error("Endereço da obra não encontrado. Confirme o endereço cadastrado.");
+  const latitude = Number(geo.lat), longitude = Number(geo.lon);
+  const apiUrl = `https://power.larc.nasa.gov/api/temporal/daily/point?parameters=PRECTOTCORR,T2M,WS10M&community=SB&longitude=${longitude}&latitude=${latitude}&start=${start.replaceAll("-", "")}&end=${end.replaceAll("-", "")}&format=JSON`;
+  const response = await fetch(apiUrl);
+  if (!response.ok) throw new Error(`Serviço climático indisponível (${response.status}).`);
+  const payload = await response.json(), parameter = payload.properties?.parameter || {};
+  const dates = [...new Set(Object.keys(parameter.PRECTOTCORR || {}).concat(Object.keys(parameter.T2M || {}), Object.keys(parameter.WS10M || {})))].sort();
+  const rows = dates.map(date => ({ date: `${date.slice(0,4)}-${date.slice(4,6)}-${date.slice(6,8)}`, precipitation: Number(parameter.PRECTOTCORR?.[date]), temperature: Number(parameter.T2M?.[date]), wind: Number(parameter.WS10M?.[date]) })).filter(row => Number.isFinite(row.precipitation) || Number.isFinite(row.temperature));
+  const result = { source: "NASA POWER", sourceUrl: "https://power.larc.nasa.gov/", address, resolvedAddress: geo.display_name, latitude, longitude, start, end, rows };
+  weatherCache.set(key, { payload: result, expiresAt: Date.now() + 6 * 60 * 60 * 1000 });
+  return result;
 }
 
 function run(command, args) {
@@ -1504,6 +1535,9 @@ export async function handleRequest(req, res) {
     }
     if (url.pathname === "/api/order-status-normalize" && req.method === "POST") {
       try { const input = await bodyJson(req); return json(res, 200, await normalizeOrderStatusesInSheet(input.clientId || "dr_clovis_cmfs")); } catch (error) { return json(res, 502, { error: error.message }); }
+    }
+    if (url.pathname === "/api/weather/report" && req.method === "GET") {
+      try { return json(res, 200, await weatherReport({ address: url.searchParams.get("address"), start: url.searchParams.get("start"), end: url.searchParams.get("end") })); } catch (error) { return json(res, 502, { error: error.message }); }
     }
     if (url.pathname === "/api/base" && req.method === "GET") {
       const clientId = cleanName(url.searchParams.get("clientId")); const base = spreadsheetBases[clientId];

@@ -1,0 +1,47 @@
+(function(){
+  "use strict";
+  const esc=v=>String(v??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+  const cash=v=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL"}).format(v);
+  const colors=["#142b49","#b39964","#799392","#a9b6c5","#69748a"];
+  const pct=(a,b)=>b?Math.round(a/b*100)+"%":"—";
+  function model(rows,reference){
+    const {iso}=window.AreaReports;
+    const ref=reference||new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo"}).format(new Date());
+    const active=rows.filter(r=>r.status!=="Finalizado");
+    const days=d=>(Date.parse(d+"T12:00:00Z")-Date.parse(ref+"T12:00:00Z"))/86400000;
+    const late=active.filter(r=>iso(r.due)&&days(iso(r.due))<0);
+    const soon=active.filter(r=>iso(r.due)&&days(iso(r.due))>=0&&days(iso(r.due))<=7);
+    const valued=rows.filter(r=>r.value!==null&&r.value!==undefined&&r.value!==""&&Number.isFinite(Number(r.value))&&Number(r.value)>0);
+    const monthly=active.filter(r=>r.billing==="Mensal"&&valued.includes(r));
+    const group=key=>Object.entries(rows.reduce((a,r)=>{const k=String(r[key]||"Não informado");a[k]=(a[k]||0)+1;return a},Object.create(null))).sort((a,b)=>b[1]-a[1]);
+    const months=Object.entries(rows.reduce((a,r)=>{const d=iso(r.sent);if(d){const k=d.slice(0,7);a[k]=(a[k]||0)+1}return a},Object.create(null))).sort(([a],[b])=>a.localeCompare(b));
+    return {ref,rows,active,late,soon,valued,monthly,months,status:group("status"),suppliers:group("supplier"),undated:rows.filter(r=>!iso(r.sent)).length};
+  }
+  function bars(groups){
+    const top=groups.slice(0,7);if(groups.length>7)top.push(["Outros",groups.slice(7).reduce((a,r)=>a+r[1],0)]);
+    const max=Math.max(1,...top.map(r=>r[1]));
+    return top.length?top.map(([name,n])=>`<div class="re-bar"><span>${esc(name)}</span><div><i style="width:${n/max*100}%"></i></div><b>${n}</b></div>`).join(""):'<p class="re-empty">Nenhum registro neste recorte.</p>';
+  }
+  function distribution(m){
+    let offset=0;
+    const parts=m.status.map(([name,n],i)=>{const size=n/m.rows.length*100;const html=`<circle cx="60" cy="60" r="44" pathLength="100" fill="none" stroke="${colors[i%colors.length]}" stroke-width="13" stroke-dasharray="${size} ${100-size}" stroke-dashoffset="${-offset}" transform="rotate(-90 60 60)"/>`;offset+=size;return html}).join("");
+    return `<div class="re-distribution"><svg viewBox="0 0 120 120" role="img" aria-label="Distribuição das ${m.rows.length} locações por situação"><circle cx="60" cy="60" r="44" fill="none" stroke="#edf0f2" stroke-width="13"/>${parts}<text x="60" y="61" text-anchor="middle" font-size="23" fill="#142b49">${m.rows.length}</text><text x="60" y="75" text-anchor="middle" font-size="7" fill="#68788b">LOCAÇÕES</text></svg><div>${m.status.map(([name,n],i)=>`<p><i style="background:${colors[i%colors.length]}"></i><span>${esc(name)}</span><b>${n} · ${pct(n,m.rows.length)}</b></p>`).join("")||'<p>Sem dados</p>'}</div></div>`;
+  }
+  function evolution(m){
+    const max=Math.max(1,...m.months.map(r=>r[1]));
+    return m.months.length?`<div class="re-evolution">${m.months.map(([date,n])=>`<div><b>${n}</b><i style="height:${n/max*90}px"></i><span>${date.slice(5)}/${date.slice(0,4)}</span></div>`).join("")}</div>`:'<p class="re-empty">Sem datas válidas para representar a evolução.</p>';
+  }
+  function timeline(r,index){
+    const {iso,formatDate}=window.AreaReports;
+    const fields=[["sent",r.fromBase?"Pedido registrado":"Envio informado",false],["exchange","Troca prevista",true],["due","Vencimento informado",true],["financialDue","Vencimento financeiro",true],["returnedDate","Devolução registrada",false]];
+    const events=fields.filter(([key])=>iso(r[key])).sort((a,b)=>iso(r[a[0]]).localeCompare(iso(r[b[0]])));
+    return `<section class="re-rental"><header><div><small>LOCAÇÃO ${String(index+1).padStart(2,"0")}${r.orderNumber?" · PEDIDO "+esc(r.orderNumber):""}</small><h3>${esc(r.item||"Locação sem nome")}</h3><p>${esc(r.supplier||"Fornecedor não informado")}${r.documentNumber?" · Documento "+esc(r.documentNumber):""}</p></div><span class="re-status">${esc(r.status||"Ativa")}</span></header><div class="re-events">${events.map(([key,label,planned])=>`<div class="${planned?"planned":"recorded"}"><i></i><strong>${formatDate(r[key])}</strong><span>${label}</span></div>`).join("")||'<p class="re-empty">Sem datas registradas. A situação atual foi preservada.</p>'}</div><footer><span>${r.fromBase?"Origem: pedido da base":"Origem: controle local"}</span><span>${Number(r.value)>0?cash(Number(r.value)):"Valor não informado"} · ${esc(r.billing||"Periodicidade não informada")}</span></footer></section>`;
+  }
+  function render(input,options={}){
+    const m=model(input.rows),{formatDate}=window.AreaReports;
+    const kpis=[["Locações no recorte",m.rows.length,"Base analisada"],["Em aberto",m.active.length,"Situação diferente de Finalizado"],["Finalizadas",m.rows.length-m.active.length,pct(m.rows.length-m.active.length,m.rows.length)+" do total"],["Vencendo em 7 dias",m.soon.length,"Vencimento da locação informado"]];
+    const notes=[m.late.length?`${m.late.length} locação(ões) em aberto com vencimento informado ultrapassado. Priorizar conferência e programação de devolução.`:"Nenhum vencimento de locação ultrapassado identificado nas datas informadas.",`${m.rows.length-m.valued.length} registro(s) sem valor informado; ${m.active.filter(r=>!window.AreaReports.iso(r.due)).length} locação(ões) em aberto sem vencimento da locação definido.`,`${m.undated} registro(s) sem data de referência permanecem nos indicadores e no detalhamento, mas não no gráfico temporal.`];
+return `<div class="rental-executive"><header class="re-cover"><div class="re-brand">ABSOLUTTA <span>ENGENHARIA & GESTÃO</span></div><div class="re-edition">RELATÓRIO EXECUTIVO <span>01 / LOCAÇÕES</span></div><h1>Gestão de<br>locações.</h1><p class="re-client">${esc(options.clientName||"Obra selecionada")}</p><div class="re-cover-meta"><span>PERÍODO<strong>${esc(input.period)}</strong></span><span>EMISSÃO<strong>${formatDate(m.ref)}</strong></span></div></header><nav class="re-index">01 Resumo executivo <span>02 Indicadores & gráficos</span><span>03 Histórico individual</span><span>04 Base detalhada</span></nav><section class="re-section"><small class="re-eyebrow">01 / VISÃO EXECUTIVA</small><h2>Operação sob acompanhamento</h2><p class="re-lead">${m.rows.length} locações analisadas, com ${m.active.length} em aberto e ${m.rows.length-m.active.length} finalizadas. ${m.soon.length} vencimento(s) de locação informado(s) nos próximos sete dias.</p><div class="re-kpis">${kpis.map(([label,value,note])=>`<div><span>${label}</span><strong>${value}</strong><small>${note}</small></div>`).join("")}</div><div class="re-assessment"><h3>Pontos de atenção</h3>${notes.map(n=>`<p>${esc(n)}</p>`).join("")}</div></section><section class="re-section"><small class="re-eyebrow">02 / INDICADORES & GRÁFICOS</small><h2>Composição da carteira</h2><div class="re-charts"><section><h3>Situação das locações</h3>${distribution(m)}</section><section><h3>Distribuição por fornecedor</h3>${bars(m.suppliers)}</section><section><h3>Evolução dos registros</h3>${evolution(m)}<p class="re-caption">Quantidade por mês de pedido / envio. Apenas datas válidas; meses sem registros não são exibidos.</p></section><section class="re-finance"><h3>Visibilidade financeira</h3><strong>${pct(m.valued.length,m.rows.length)}</strong><p>dos registros possuem valor informado</p><dl><dt>Mensal identificado · em aberto</dt><dd>${m.monthly.length?cash(m.monthly.reduce((s,r)=>s+Number(r.value),0)):"Não apurado"}</dd></dl><p class="re-caption">Somente cobranças explicitamente mensais. Valores sem periodicidade não são somados nem tratados como pagamentos.</p></section></div></section><section class="re-section"><small class="re-eyebrow">03 / HISTÓRICO INDIVIDUAL</small><h2>Linha do tempo de cada locação</h2><p class="re-caption">Marcos em ordem cronológica, sem escala de duração. Círculos preenchidos: datas registradas. Vazios: previsões ou vencimentos, sem confirmação de execução. O painel não registra a data de cada movimentação do Kanban.</p>${m.rows.map(timeline).join("")||'<p class="re-empty">Nenhuma locação neste período.</p>'}</section><section class="re-section"><small class="re-eyebrow">04 / BASE DETALHADA</small><h2>Registros para conferência</h2><div class="re-table"><table><thead><tr><th>Locação / pedido</th><th>Fornecedor</th><th>Referência</th><th>Situação</th><th>Valor informado</th></tr></thead><tbody>${m.rows.map(r=>`<tr><td>${esc(r.item||"Não informado")}<small>${r.orderNumber?"Pedido "+esc(r.orderNumber):"Sem pedido identificado"}</small></td><td>${esc(r.supplier||"Não informado")}</td><td>${formatDate(r.sent)}</td><td>${esc(r.status||"Ativa")}</td><td>${Number(r.value)>0?cash(Number(r.value)):"Não informado"}<small>${esc(r.billing||"Periodicidade não informada")}</small></td></tr>`).join("")||'<tr><td colspan="5">Sem registros.</td></tr>'}</tbody></table></div></section><footer class="re-foot"><p>${esc(options.source||"Dados disponíveis no painel")}. Relatório de acompanhamento, sem comprovação de pagamento. Datas financeiras da base não são tratadas como prazo contratual da locação. Situações refletem a emissão, inclusive em recortes históricos.</p></footer></div>`;
+  }
+  window.RentalExecutive={model,render,bars,evolution};
+})();
