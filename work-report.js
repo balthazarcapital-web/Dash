@@ -31,8 +31,12 @@
     return {title:work.details?.name||work.budget?.project||"Gestão de obra",items,planned:items.reduce((s,i)=>s+i.planned,0),actual:items.reduce((s,i)=>s+i.actual,0),journal:[...(work.journal||[])],climate};
   }
   function climateFor(work){
-    // Associação explícita; nunca compartilhar clima entre clientes por aproximação de nome.
-    return (window.AbsoluttaClimateData||[]).filter(entry=>entry.clientId===work.clientId)
+    const climateData=window.AbsoluttaClimateData||[];
+    // Todos os clientes atuais ficam em Curitiba. Use a base geral enquanto
+    // um cliente ainda não tiver uma estação/base climática própria.
+    const own=climateData.filter(entry=>entry.clientId===work.clientId);
+    const entries=own.length?own:climateData.filter(entry=>entry.clientId==='dr_clovis_cmfs');
+    return entries
       .flatMap(entry=>entry.businessRows||[]).sort((a,b)=>a.date.localeCompare(b.date));
   }
   function climateRange(rows){
