@@ -51,7 +51,7 @@
     clearOperationalFilters();state.activeView="overview";state.data=[];state.filtered=[];state.page=1;
     ["#status-filter","#category-filter"].forEach(selector=>{const element=$(selector);while(element.options.length>1)element.remove(1)});
     window.DeterlimpQuotes?.setClient?.({id:config.id,name:config.name,work:config.work||config.name});
-    window.WorkManagement?.setClient?.({id:config.id,name:config.name,work:config.work||config.name});
+    window.WorkManagement?.setClient?.({id:config.id,name:config.name,work:config.work||config.name,schedule:config.schedule,scheduleFinancial:config.scheduleFinancial,scheduleUrl:config.scheduleUrl});
     updateClientChrome();renderAll();await loadData();closeMobileMenu();
   }
 
@@ -233,7 +233,7 @@ function renderRentalKanban(rows){const map={Solicitado:[],Entregue:[],Finalizad
   Object.values(clients).forEach(client=>$("#client-select").add(new Option(client.name,client.id)));
   updateClientChrome();
   window.DeterlimpQuotes?.init({orders:()=>state.data,toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
-  window.WorkManagement?.init({orders:()=>state.data.map((order,index)=>({...order,reportRef:orderCostRef(order,index)})),toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
+  window.WorkManagement?.init({orders:()=>state.data.map((order,index)=>({...order,reportRef:orderCostRef(order,index)})),toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name,schedule:config.schedule,scheduleFinancial:config.scheduleFinancial,scheduleUrl:config.scheduleUrl}});
   if(requestedView==="quotes")window.DeterlimpQuotes?.enter();
   loadData();
   $("#overview-report-button")?.addEventListener("click",openOrdersExecutive);

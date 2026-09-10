@@ -61,6 +61,32 @@ window.DASHBOARD_CLIENTS = {
     id: "dr_clovis_cmfs", name: "Dr. Clovis CMSF", shortName: "DR. CLOVIS CMSF", work: "Dr. Clovis CMSF",
     spreadsheetId: "1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU", sheetGid: "1856239408",
     spreadsheetUrl: "https://docs.google.com/spreadsheets/d/1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU/edit",
+    scheduleSpreadsheetId: "1_zlKGOP_I5EKbLAznvuEys4nc_UTqwtn-wBsYo13fzs",
+    scheduleUrl: "https://docs.google.com/spreadsheets/d/1_zlKGOP_I5EKbLAznvuEys4nc_UTqwtn-wBsYo13fzs/edit",
+    schedule: [
+      {item:"1",name:"Visita FDS",start:"2026-09-08",end:"2026-09-08",owner:"—",description:"Visita inicial de acompanhamento da obra.",material:"Visita técnica",valueLabel:"Sem valor informado",plannedValue:0},
+      {item:"2",name:"Retirada de material pré-demolição",start:"2026-09-09",end:"2026-09-13",owner:"Valdecyr",description:"Preparo do barraco de obra, banheiros, tapumes, lava-rodas e demolição da casa de madeira.",material:"Mobilização e preparo da obra",valueLabel:"R$ 10.702,50",plannedValue:10702.50},
+      {item:"3",name:"Demolição",start:"2026-09-14",end:"2026-09-18",owner:"Cassiano",contact:"Raquel",description:"Demolição e limpeza do terreno.",material:"Demolição e limpeza",valueLabel:"R$ 23.500,00",plannedValue:23500},
+      {item:"4",name:"Topografia",start:"2026-09-17",end:"2026-09-18",owner:"MR Engenharia / DGR Topografia",contact:"Daniel • (41) 98764-3392",description:"Apoio topográfico para a preparação da contenção.",material:"Levantamento topográfico",valueLabel:"R$ 5.000,00",plannedValue:5000},
+      {item:"5",name:"Rachão 50 cm",start:"2026-09-16",end:"2026-09-21",owner:"Cassiano",contact:"Raquel",description:"Execução do rachão, com cotação por metro cúbico.",material:"Rachão • cotação por m³",valueLabel:"R$ 44.100,00 • R$ 105,00/m³",plannedValue:44100},
+      {item:"6",name:"Fase A — Contenção",start:"2026-10-01",end:"2026-10-16",owner:"Veneto / Bendertec / concreteiras",contact:"Julio Borges • (41) 99618-6691",description:"Colocação de estacas, armadura, concreto e apoio de topografia.",material:"Estacas, aço CA50, concreto e topografia",valueLabel:"Aço e concreto conforme fornecedores selecionados",plannedValue:753669.12,quoteGroups:[{id:"execucao",label:"Estacas e execução",options:[{id:"veneto",supplier:"Veneto",value:154132}]},{id:"aco",label:"Aço CA50 para estacas",options:[{id:"bendertec",supplier:"Bendertec",value:166177.12}]},{id:"concreto",label:"Concreto",options:[{id:"novamix",supplier:"Novamix",value:500433.60},{id:"basefort",supplier:"Basefort",value:454200},{id:"concrebras",supplier:"Concrebrás",value:433360},{id:"hobimix",supplier:"Hobimix",value:433360}]}]},
+      {item:"7",name:"Escavação e bota-fora",start:"2026-10-19",end:"2026-10-26",owner:"Cassiano",contact:"Raquel",description:"Retirada de material da obra.",material:"Escavação e bota-fora • cotação por m³",valueLabel:"R$ 90.090,00 • R$ 45,00/m³",plannedValue:90090},
+      {item:"8",name:"Fase B — 1ª linha de tirantes",start:"2026-10-14",end:"2026-11-02",owner:"Veneto",description:"Execução dos tirantes em aço da contenção.",material:"Tirantes em aço",valueLabel:"R$ 94.602,87",plannedValue:94602.87},
+      {item:"9",name:"Escavação e bota-fora",start:"2026-11-03",end:"2026-11-09",owner:"Cassiano",contact:"Raquel",description:"Retirada de material da obra.",material:"Escavação e bota-fora • cotação por m³",valueLabel:"R$ 90.090,00 • R$ 45,00/m³",plannedValue:90090},
+      {item:"10",name:"Fase B — 2ª linha de tirantes",start:"2026-11-10",end:"2026-11-27",owner:"Veneto",description:"Execução dos tirantes em aço da contenção.",material:"Tirantes em aço",valueLabel:"R$ 94.602,87",plannedValue:94602.87},
+      {item:"11",name:"Escavação e bota-fora",start:"2026-11-30",end:"2026-12-04",owner:"Cassiano",contact:"Raquel",description:"Retirada de material da obra.",material:"Escavação e bota-fora • cotação por m³",valueLabel:"R$ 90.090,00 • R$ 45,00/m³",plannedValue:90090},
+      {item:"12",name:"Fase C — 3ª linha de tirantes",start:"2026-12-07",end:"2026-12-21",owner:"Veneto",description:"Execução dos tirantes em aço da contenção.",material:"Tirantes em aço",valueLabel:"R$ 94.602,87",plannedValue:94602.87},
+      {item:"13",name:"Escavação e bota-fora",start:"2026-12-21",end:"2027-01-04",owner:"Cassiano",contact:"Raquel",description:"Retirada de material da obra.",material:"Escavação e bota-fora • cotação por m³",valueLabel:"R$ 90.090,00 • R$ 45,00/m³",plannedValue:90090},
+      {item:"14",name:"Fundações",start:"2027-01-05",end:"2027-01-12",owner:"Veneto",description:"Verificação das estacas dos blocos.",material:"Estacas dos blocos",valueLabel:"R$ 40.635,00",plannedValue:40635},
+      {item:"15",name:"Blocos e baldrame",start:"2027-01-13",end:"2027-01-20",owner:"Valdecyr",contact:"Valdecyr",description:"Início dos blocos e baldrame; datas a confirmar na obra.",material:"Blocos e baldrame",valueLabel:"Valor a confirmar",plannedValue:0}
+    ],
+    scheduleFinancial: [
+      {month:"2026-09",label:"Setembro / 2026",value:83302.50,fronts:5},
+      {month:"2026-10",label:"Outubro / 2026",value:2326355.59,fronts:3},
+      {month:"2026-11",label:"Novembro / 2026",value:274782.87,fronts:3},
+      {month:"2026-12",label:"Dezembro / 2026",value:184692.87,fronts:2},
+      {month:"2027-01",label:"Janeiro / 2027",value:40635.00,fronts:2}
+    ],
     snapshotDate: "2026-08-19T12:01:09-03:00",
     snapshot: [
       {date:"2026-07-07",requester:"Marco",description:"Caçamba",category:"Locação",subCategory:"Caçamba",number:"1",status:"Finalizado",delivery:"",supplier:"",invoice:"",issue:"",value:0,nfFile:"",payment:"Falta Pagar",due:"2026-07-15"},
