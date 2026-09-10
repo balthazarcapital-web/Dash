@@ -541,21 +541,53 @@ const sheetDate = value => {
   const match = String(value || "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
   return match ? `${match[3]}-${match[2].padStart(2,"0")}-${match[1].padStart(2,"0")}` : String(value || "").slice(0,10);
 };
-async function readScheduleSheet(clientId) {
-  const base = scheduleBases[cleanName(clientId)]; if (!base) throw new Error("Cronograma deste cliente não configurado.");
-  const range = `'${base.sheet.replaceAll("'", "''")}'!B3:K100`;
-  const response = await sheetsFetch(`spreadsheets/${base.id}/values/${encodeURIComponent(range)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`);
-  const values = (await response.json()).values || [], rows = []; let current = null;
+const parseCsv = text => {
+  const rows = []; let row = [], cell = "", quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index], next = text[index + 1];
+    if (char === '"' && quoted && next === '"') { cell += '"'; index += 1; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === "," && !quoted) { row.push(cell); cell = ""; }
+    else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += char;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+};
+const scheduleNumber = value => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const text = String(value ?? "").trim().replace(/[^\d,.-]/g, "");
+  if (!text) return 0;
+  return Number(text.includes(",") ? text.replaceAll(".", "").replace(",", ".") : text) || 0;
+};
+const parseScheduleRows = values => {
+  const rows = []; let current = null;
   values.forEach((cells, offset) => {
     const item = String(cells[0] ?? "").trim(), name = String(cells[1] ?? "").trim();
     if (item && /^\d+$/.test(item) && name) {
-      current = { item, sheetRow: offset + 3, name, description:String(cells[2]??""), owner:String(cells[3]??""), contact:String(cells[4]??""), material:String(cells[5]??""), start:sheetDate(cells[6]), end:sheetDate(cells[7]), plannedValue:Number(cells[8])||0, unitValue:Number(cells[9])||0, alternatives:[] };
+      current = { item, sheetRow: offset + 3, name, description:String(cells[2]??""), owner:String(cells[3]??""), contact:String(cells[4]??""), material:String(cells[5]??""), start:sheetDate(cells[6]), end:sheetDate(cells[7]), plannedValue:scheduleNumber(cells[8]), unitValue:scheduleNumber(cells[9]), alternatives:[] };
       rows.push(current);
     } else if (current && String(cells[3] ?? "").trim() && (cells[8] !== undefined || cells[4] !== undefined)) {
-      current.alternatives.push({sheetRow:offset+3,supplier:String(cells[3]??""),contact:String(cells[4]??""),value:Number(cells[8])||0,unitValue:Number(cells[9])||0});
+      current.alternatives.push({sheetRow:offset+3,supplier:String(cells[3]??""),contact:String(cells[4]??""),value:scheduleNumber(cells[8]),unitValue:scheduleNumber(cells[9])});
     }
   });
-  return { rows, spreadsheetId:base.id, sheet:base.sheet, syncedAt:isoNow() };
+  return rows;
+};
+async function readScheduleSheet(clientId) {
+  const base = scheduleBases[cleanName(clientId)]; if (!base) throw new Error("Cronograma deste cliente não configurado.");
+  const range = `'${base.sheet.replaceAll("'", "''")}'!B3:K100`;
+  try {
+    const response = await sheetsFetch(`spreadsheets/${base.id}/values/${encodeURIComponent(range)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`);
+    const values = (await response.json()).values || [];
+    return { rows:parseScheduleRows(values), spreadsheetId:base.id, sheet:base.sheet, source:"google-api", writable:true, syncedAt:isoNow() };
+  } catch (authError) {
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${base.id}/export?format=csv&gid=0`);
+    if (!response.ok) throw authError;
+    const values = parseCsv(await response.text()).slice(2).map(row => row.slice(1, 11));
+    return { rows:parseScheduleRows(values), spreadsheetId:base.id, sheet:base.sheet, source:"public-csv", writable:false, syncedAt:isoNow() };
+  }
 }
 async function updateScheduleSheet(clientId, input) {
   const base=scheduleBases[cleanName(clientId)]; if(!base)throw new Error("Cronograma deste cliente não configurado.");
@@ -563,7 +595,8 @@ async function updateScheduleSheet(clientId, input) {
   const allowed={name:"C",description:"D",owner:"E",contact:"F",material:"G",start:"H",end:"I",plannedValue:"J",unitValue:"K"}, data=[];
   for(const [field,column] of Object.entries(allowed)){if(input[field]===undefined)continue;let value=input[field];if(["start","end"].includes(field)){const m=String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);value=m?`${m[3]}/${m[2]}/${m[1]}`:""}if(["plannedValue","unitValue"].includes(field)){value=Number(value);if(!Number.isFinite(value)||value<0)throw new Error("Informe um valor válido.")}data.push({range:`'${base.sheet}'!${column}${row}`,values:[[value]]})}
   if(!data.length)throw new Error("Nenhuma alteração para salvar.");
-  await sheetsFetch(`spreadsheets/${base.id}/values:batchUpdate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({valueInputOption:"USER_ENTERED",data})});
+  try { await sheetsFetch(`spreadsheets/${base.id}/values:batchUpdate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({valueInputOption:"USER_ENTERED",data})}); }
+  catch (error) { if (/expired|revoked/i.test(error.message)) throw new Error("A leitura está conectada, mas a autorização do Google para editar expirou. Renove a credencial do Google Sheets na Vercel."); throw error; }
   return {ok:true,updated:data.length,row};
 }
 async function normalizeOrderStatusesInSheet(clientId) {
