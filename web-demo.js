@@ -1,7 +1,7 @@
 (function () {
   "use strict";
 
-  const version = "1.1.6";
+  const version = "1.1.7";
   window.DASH_VERSION = version;
 
   const localHosts = new Set(["localhost", "127.0.0.1", "0.0.0.0", "[::1]"]);
