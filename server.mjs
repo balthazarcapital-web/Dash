@@ -277,7 +277,14 @@ async function saveQuote(quote) {
 }
 
 async function readWorks() {
-  if (isVercel && driveConfigured()) return readDriveState("absolutta-dashboard-works.json", []);
+  if (isVercel && driveConfigured()) {
+    try {
+      return await readDriveState("absolutta-dashboard-works.json", []);
+    } catch (error) {
+      console.warn("Google Drive indisponível ao ler obras; usando dados publicados.", error.message);
+      try { return JSON.parse(await fs.readFile(publishedWorksPath, "utf8")); } catch { return []; }
+    }
+  }
   try { return JSON.parse(await fs.readFile(worksStorePath, "utf8")); } catch { return []; }
 }
 async function writeWorks(rows) {
@@ -385,7 +392,15 @@ function normalizeWork(incoming, existing) {
 }
 async function getOrCreateWork(clientId, clientName = "") {
   const rows = await readWorks(); let work = rows.find(row => row.clientId === clientId);
-  if (!work) { work = (await publishedWork(clientId)) || newWork(clientId, clientName || clientId); rows.unshift(work); await writeWorks(rows); }
+  if (!work) {
+    work = (await publishedWork(clientId)) || newWork(clientId, clientName || clientId);
+    rows.unshift(work);
+    try { await writeWorks(rows); }
+    catch (error) {
+      if (!isVercel) throw error;
+      console.warn("Google Drive indisponível ao inicializar obra; servindo dados publicados.", error.message);
+    }
+  }
   else {
     let changed = false;
     const restored = restorePublishedWork(work, await publishedWork(clientId));
@@ -399,7 +414,14 @@ async function getOrCreateWork(clientId, clientName = "") {
     if (clientId === "dr_clovis_cmfs" && !(work.documents || []).some(row => row.driveUrl?.includes("19Zu1QQOW64b5bCFQ2mHQP3AwYqe7zYI2"))) {
       work.documents = [...(work.documents || []), { id: uid("doc"), title: "Orçamento da Obra CLI", required: false, status: "Aprovado", expiry: "", owner: "", notes: "Planilha-base do orçamento detalhado da obra, com material, mão de obra e taxa administrativa.", driveUrl: "https://drive.google.com/file/d/19Zu1QQOW64b5bCFQ2mHQP3AwYqe7zYI2/view?usp=drivesdk", files: [] }]; changed = true;
     }
-    if (changed) { work.updatedAt = isoNow(); await writeWorks(rows); }
+    if (changed) {
+      work.updatedAt = isoNow();
+      try { await writeWorks(rows); }
+      catch (error) {
+        if (!isVercel) throw error;
+        console.warn("Google Drive indisponível ao restaurar obra; servindo dados publicados.", error.message);
+      }
+    }
   }
   return work;
 }
