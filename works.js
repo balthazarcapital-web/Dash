@@ -11,6 +11,7 @@
   const fmtDate=value=>value?new Intl.DateTimeFormat("pt-BR").format(new Date(`${value}T12:00:00`)):"—";
   const money=value=>new Intl.NumberFormat("pt-BR",{style:"currency",currency:"BRL",maximumFractionDigits:2}).format(Number(value)||0);
   const decimal=value=>new Intl.NumberFormat("pt-BR",{maximumFractionDigits:2}).format(Number(value)||0);
+  const norm=value=>String(value??"").normalize("NFD").replace(/[\u0300-\u036f]/g,"").trim().toLowerCase();
   const today=()=>new Date().toISOString().slice(0,10);
   let webWorksPromise;
   async function webWorks(){if(!webWorksPromise)webWorksPromise=fetch("works-data.json?v=1.1.6").then(response=>{if(!response.ok)throw new Error("Dados das obras indisponíveis");return response.json()});return webWorksPromise}
