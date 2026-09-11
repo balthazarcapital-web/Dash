@@ -589,16 +589,6 @@ async function readScheduleSheet(clientId) {
     return { rows:parseScheduleRows(values), spreadsheetId:base.id, sheet:base.sheet, source:"public-csv", writable:false, syncedAt:isoNow() };
   }
 }
-async function updateScheduleSheet(clientId, input) {
-  const base=scheduleBases[cleanName(clientId)]; if(!base)throw new Error("Cronograma deste cliente não configurado.");
-  const row=Number(input.sheetRow); if(!Number.isInteger(row)||row<3)throw new Error("Linha do cronograma inválida.");
-  const allowed={name:"C",description:"D",owner:"E",contact:"F",material:"G",start:"H",end:"I",plannedValue:"J",unitValue:"K"}, data=[];
-  for(const [field,column] of Object.entries(allowed)){if(input[field]===undefined)continue;let value=input[field];if(["start","end"].includes(field)){const m=String(value).match(/^(\d{4})-(\d{2})-(\d{2})$/);value=m?`${m[3]}/${m[2]}/${m[1]}`:""}if(["plannedValue","unitValue"].includes(field)){value=Number(value);if(!Number.isFinite(value)||value<0)throw new Error("Informe um valor válido.")}data.push({range:`'${base.sheet}'!${column}${row}`,values:[[value]]})}
-  if(!data.length)throw new Error("Nenhuma alteração para salvar.");
-  try { await sheetsFetch(`spreadsheets/${base.id}/values:batchUpdate`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({valueInputOption:"USER_ENTERED",data})}); }
-  catch (error) { if (/expired|revoked/i.test(error.message)) throw new Error("A leitura está conectada, mas a autorização do Google para editar expirou. Renove a credencial do Google Sheets na Vercel."); throw error; }
-  return {ok:true,updated:data.length,row};
-}
 async function normalizeOrderStatusesInSheet(clientId) {
   const base = spreadsheetBases[cleanName(clientId)]; if (!base) throw new Error("Base deste cliente não configurada.");
   const read = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values/${encodeURIComponent("A:Z")}?majorDimension=ROWS`);
@@ -1626,9 +1616,6 @@ export async function handleRequest(req, res) {
     }
     if (url.pathname === "/api/schedule" && req.method === "GET") {
       try { return json(res,200,await readScheduleSheet(url.searchParams.get("clientId"))); } catch(error) { return json(res,502,{error:error.message}); }
-    }
-    if (url.pathname === "/api/schedule" && req.method === "PUT") {
-      try { const input=await bodyJson(req); return json(res,200,await updateScheduleSheet(input.clientId,input)); } catch(error) { return json(res,502,{error:error.message}); }
     }
     if (url.pathname === "/api/weather/report" && req.method === "GET") {
       try { return json(res, 200, await weatherReport({ address: url.searchParams.get("address"), start: url.searchParams.get("start"), end: url.searchParams.get("end") })); } catch (error) { return json(res, 502, { error: error.message }); }
