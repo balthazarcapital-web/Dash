@@ -599,15 +599,6 @@ async function updateScheduleSheet(clientId, input) {
   catch (error) { if (/expired|revoked/i.test(error.message)) throw new Error("A leitura está conectada, mas a autorização do Google para editar expirou. Renove a credencial do Google Sheets na Vercel."); throw error; }
   return {ok:true,updated:data.length,row};
 }
-async function clearSchedulePart(clientId, input) {
-  const base=scheduleBases[cleanName(clientId)]; if(!base)throw new Error("Cronograma deste cliente não configurado.");
-  const row=Number(input.sheetRow); if(!Number.isInteger(row)||row<3)throw new Error("Linha do cronograma inválida.");
-  const ranges=input.part==="alternative"?[`'${base.sheet}'!E${row}:F${row}`,`'${base.sheet}'!J${row}:K${row}`]:input.part==="material"?[`'${base.sheet}'!G${row}`]:input.part==="supplier"?[`'${base.sheet}'!E${row}:F${row}`]:[];
-  if(!ranges.length)throw new Error("Escolha inválida para remoção.");
-  try { await sheetsFetch(`spreadsheets/${base.id}/values:batchClear`,{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({ranges})}); }
-  catch(error){if(/expired|revoked/i.test(error.message))throw new Error("A autorização do Google para editar expirou. Renove a credencial do Google Sheets na Vercel.");throw error}
-  return {ok:true,cleared:ranges,row,part:input.part};
-}
 async function normalizeOrderStatusesInSheet(clientId) {
   const base = spreadsheetBases[cleanName(clientId)]; if (!base) throw new Error("Base deste cliente não configurada.");
   const read = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values/${encodeURIComponent("A:Z")}?majorDimension=ROWS`);
@@ -1638,9 +1629,6 @@ export async function handleRequest(req, res) {
     }
     if (url.pathname === "/api/schedule" && req.method === "PUT") {
       try { const input=await bodyJson(req); return json(res,200,await updateScheduleSheet(input.clientId,input)); } catch(error) { return json(res,502,{error:error.message}); }
-    }
-    if (url.pathname === "/api/schedule" && req.method === "DELETE") {
-      try { const input=await bodyJson(req); return json(res,200,await clearSchedulePart(input.clientId,input)); } catch(error) { return json(res,502,{error:error.message}); }
     }
     if (url.pathname === "/api/weather/report" && req.method === "GET") {
       try { return json(res, 200, await weatherReport({ address: url.searchParams.get("address"), start: url.searchParams.get("start"), end: url.searchParams.get("end") })); } catch (error) { return json(res, 502, { error: error.message }); }
