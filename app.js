@@ -1,6 +1,30 @@
 (function(){
   "use strict";
   const clients=window.DASHBOARD_CLIENTS||{deterlimp:{...window.DETERLIMP_CONFIG,id:"deterlimp",name:"Deterlimp",shortName:"DETERLIMP",work:"Deterlimp",snapshot:window.DETERLIMP_DATA}};
+  const clientPins={dr_clovis_cmfs:"1111",carlos_bezerra:"2222",clinica_gianna:"3333",deterlimp:"4444"};
+  function authorizeClient(clientId,required=false){
+    return new Promise(resolve=>{
+      let backdrop=document.querySelector("#client-pin-backdrop");
+      if(!backdrop){
+        backdrop=document.createElement("div");backdrop.id="client-pin-backdrop";backdrop.className="client-pin-backdrop";
+        backdrop.innerHTML=`<section class="client-pin-modal" role="dialog" aria-modal="true" aria-labelledby="client-pin-title"><h2 id="client-pin-title">Acesso ao painel</h2><p>Selecione o cliente e digite o PIN correspondente.</p><label>Cliente<select id="client-pin-client" aria-label="Cliente para acesso"></select></label><label>PIN<input id="client-pin-input" type="password" inputmode="numeric" maxlength="12" placeholder="Digite o PIN"></label><small id="client-pin-error" role="alert"></small><div><button type="button" id="client-pin-cancel">Cancelar</button><button type="button" id="client-pin-submit">Entrar</button></div></section>`;
+        document.body.append(backdrop);
+      }
+      const input=backdrop.querySelector("#client-pin-input"),error=backdrop.querySelector("#client-pin-error"),clientField=backdrop.querySelector("#client-pin-client");
+      clientField.replaceChildren(...Object.values(clients).map(client=>new Option(client.name,client.id)));
+      clientField.value=clientId;input.value="";error.textContent="";backdrop.hidden=false;
+      const cancel=backdrop.querySelector("#client-pin-cancel"),submit=backdrop.querySelector("#client-pin-submit");
+      cancel.hidden=required;
+      cancel.onclick=()=>{backdrop.hidden=true;resolve(null)};
+      submit.onclick=()=>{
+        const selected=clientField.value;
+        if(input.value.trim()!==clientPins[selected]){error.textContent="PIN incorreto para o cliente selecionado.";input.select();return}
+        backdrop.hidden=true;resolve(selected);
+      };
+      input.onkeydown=event=>{if(event.key==="Enter")submit.click()};
+      setTimeout(()=>input.focus(),0);
+    });
+  }
   const savedClient=localStorage.getItem("dashboard-client");
   let config=clients[savedClient]||clients.deterlimp||Object.values(clients)[0];
   let snapshot=config.snapshot||[];
@@ -45,8 +69,12 @@
     $("#client-select").value=config.id;document.title=`${config.name} | Controle de pedidos`;
     const workField=$("#request-work");if(workField&&!window.DeterlimpQuotes?.hasActiveQuote?.())workField.value=config.work||config.name;
   }
-  async function switchClient(clientId){
+  async function switchClient(clientId,approved=false){
     if(!clients[clientId]||clientId===state.clientId)return;
+    const approvedClientId=approved?clientId:await authorizeClient(clientId);
+    if(!approvedClientId){$("#client-select").value=state.clientId;return}
+    clientId=approvedClientId;
+    if(clientId===state.clientId){$("#client-select").value=state.clientId;return}
     config=clients[clientId];snapshot=config.snapshot||[];state.clientId=config.id;localStorage.setItem("dashboard-client",config.id);
     clearOperationalFilters();state.activeView="overview";state.data=[];state.filtered=[];state.page=1;
     ["#status-filter","#category-filter"].forEach(selector=>{const element=$(selector);while(element.options.length>1)element.remove(1)});
@@ -234,7 +262,12 @@ function renderRentalKanban(rows){const map={Solicitado:[],Entregue:[],Finalizad
   updateClientChrome();
   window.DeterlimpQuotes?.init({orders:()=>state.data,toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
   window.WorkManagement?.init({orders:()=>state.data.map((order,index)=>({...order,reportRef:orderCostRef(order,index)})),toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name,schedule:config.schedule,scheduleFinancial:config.scheduleFinancial,scheduleUrl:config.scheduleUrl}});
-  if(requestedView==="quotes")window.DeterlimpQuotes?.enter();
-  loadData();
+  (async()=>{
+    const selectedClientId=await authorizeClient(config.id,true);
+    if(!selectedClientId)return;
+    if(selectedClientId!==state.clientId)await switchClient(selectedClientId,true);
+    else await loadData();
+    if(requestedView==="quotes")window.DeterlimpQuotes?.enter();
+  })();
   $("#overview-report-button")?.addEventListener("click",openOrdersExecutive);
 })();
