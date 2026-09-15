@@ -380,6 +380,50 @@
         "notes": "Planilha-base do orçamento detalhado da obra, com material, mão de obra e taxa administrativa.",
         "driveUrl": "https://drive.google.com/file/d/19Zu1QQOW64b5bCFQ2mHQP3AwYqe7zYI2/view?usp=drivesdk",
         "files": []
+      },
+      {
+        "id": "doc_drive_cronograma_principal",
+        "title": "Cronograma",
+        "required": false,
+        "status": "Aprovado",
+        "expiry": "",
+        "owner": "",
+        "notes": "Arquivo disponível na pasta do Dr. Clóvis no Google Drive.",
+        "driveUrl": "https://docs.google.com/spreadsheets/d/1_zlKGOP_I5EKbLAznvuEys4nc_UTqwtn-wBsYo13fzs/edit?usp=drivesdk",
+        "files": []
+      },
+      {
+        "id": "doc_drive_controle_concreto_periodo",
+        "title": "PC-0002-2026 - Controle de Concreto por Período - Dr. Clóvis.pdf",
+        "required": false,
+        "status": "Aprovado",
+        "expiry": "",
+        "owner": "CDTEC",
+        "notes": "Controle tecnológico do concreto disponível na pasta do Dr. Clóvis.",
+        "driveUrl": "https://drive.google.com/file/d/1bIPD_Wv5EzNmeT1PH9xtYXdY63kZLlOJ/view?usp=drivesdk",
+        "files": []
+      },
+      {
+        "id": "doc_drive_cronograma_setembro_2026",
+        "title": "Cronograma Setembro 2026 - Dr. Clóvis",
+        "required": false,
+        "status": "Aprovado",
+        "expiry": "",
+        "owner": "",
+        "notes": "Arquivo disponível na pasta do Dr. Clóvis no Google Drive.",
+        "driveUrl": "https://docs.google.com/spreadsheets/d/1Q-jPKyFq3n1V8u4bkIj4X9CepOaQa9tqDP2hTuDPNFQ/edit?usp=drivesdk",
+        "files": []
+      },
+      {
+        "id": "doc_drive_cronograma_v2",
+        "title": "Cronograma V2",
+        "required": false,
+        "status": "Aprovado",
+        "expiry": "",
+        "owner": "",
+        "notes": "Arquivo disponível na pasta do Dr. Clóvis no Google Drive.",
+        "driveUrl": "https://docs.google.com/spreadsheets/d/1ctW3Dmt52ZvjSRtlo53Ee-Iy-s-8paSNPo0S5ilHEQA/edit?usp=drivesdk",
+        "files": []
       }
     ],
     "tasks": [],
