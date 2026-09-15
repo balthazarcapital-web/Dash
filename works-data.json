@@ -393,6 +393,28 @@
         "files": []
       },
       {
+        "id": "doc_drive_laudo_vistoria_2026",
+        "title": "01-Laudo Vistoria-COM-FOTOS-V1-25-08-26+ART.pdf",
+        "required": false,
+        "status": "Aprovado",
+        "expiry": "",
+        "owner": "",
+        "notes": "Documento arquivado na pasta Documentos da Obra.",
+        "driveUrl": "https://drive.google.com/file/d/1RIay-tl6mu3m9ihHbZe5mrRToUVATFG3/view?usp=drivesdk",
+        "files": []
+      },
+      {
+        "id": "doc_drive_orcamento_google_doc",
+        "title": "Orçamento da Obra CLI_válido cliente",
+        "required": false,
+        "status": "Aprovado",
+        "expiry": "",
+        "owner": "",
+        "notes": "Documento arquivado na pasta Documentos da Obra.",
+        "driveUrl": "https://docs.google.com/document/d/1TVU7PLBhaCTMvswGrDirWcrw-iu3xqkdhIs1n41-BC0/edit?usp=drivesdk",
+        "files": []
+      },
+      {
         "id": "doc_drive_controle_concreto_periodo",
         "title": "PC-0002-2026 - Controle de Concreto por Período - Dr. Clóvis.pdf",
         "required": false,
