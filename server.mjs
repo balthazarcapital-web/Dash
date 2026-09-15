@@ -27,7 +27,7 @@ const weatherCache = new Map();
 const driveRoots = {
   deterlimp: process.env.GOOGLE_DRIVE_ROOT_DETERLIMP || "1F5mfcQ6STExZHtbbCr_QCYV1FUjznw3z",
   carlos_bezerra: process.env.GOOGLE_DRIVE_ROOT_CARLOS_BEZERRA || "1ShnoGQbYwC947ZKN1ziV43az5AJrd94d",
-  dr_clovis_cmfs: process.env.GOOGLE_DRIVE_ROOT_DR_CLOVIS_CMFS || "1MenF8_QQ52eg1pRP39fiQv2n1hP9pRFc",
+  dr_clovis_cmfs: process.env.GOOGLE_DRIVE_ROOT_DR_CLOVIS_CMFS || "19TNh8CXWDm-lGASIxMG9PeTt3tTe6swb",
   clinica_gianna: process.env.GOOGLE_DRIVE_ROOT_CLINICA_GIANNA || "1FErPPJh_DK3VdoOXIMPQpL5MCuZ1oxfF"
 };
 // Estado compartilhado do dashboard fica em uma pasta normal do Drive. Isso
@@ -277,10 +277,24 @@ async function saveQuote(quote) {
 }
 
 async function readWorks() {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    try {
+      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/drive_sync_records?select=client_id,payload&drive_id=like.work-state:*`, { headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` } });
+      if (response.ok) {
+        const records = await response.json();
+        return records.map(record => record.payload).filter(Boolean);
+      }
+    } catch {}
+  }
   if (isVercel && driveConfigured()) return readDriveState("absolutta-dashboard-works.json", []);
   try { return JSON.parse(await fs.readFile(worksStorePath, "utf8")); } catch { return []; }
 }
 async function writeWorks(rows) {
+  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+    const records = rows.map(work => ({ client_id: work.clientId, drive_id: `work-state:${work.clientId}`, record_type: "file", name: `Gestão da obra — ${work.details?.name || work.clientId}`, mime_type: "application/json", payload: work, synced_at: isoNow() }));
+    const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/drive_sync_records?on_conflict=client_id,drive_id`, { method: "POST", headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(records) });
+    if (response.ok) return;
+  }
   if (isVercel && driveConfigured()) return writeDriveState("absolutta-dashboard-works.json", rows);
   const temp = `${worksStorePath}.tmp`;
   await fs.writeFile(temp, JSON.stringify(rows, null, 2), "utf8");
@@ -352,7 +366,7 @@ function newWork(clientId, clientName = "Obra") {
     details: { name: clientName, address: "", type: "", description: "", client: clientName, engineer: "", manager: "", plannedStart: "", plannedEnd: "", status: "Planejamento" },
     phases: phaseSeed.map(([name, weight], order) => ({ id: uid("etapa"), name, weight, progress: 0, status: "Não iniciada", owner: "", plannedStart: "", plannedEnd: "", actualStart: "", actualEnd: "", notes: "", applicable: true, order })),
     documents: documentSeed.map(title => ({ id: uid("doc"), title, required: true, status: "Pendente", expiry: "", owner: "", notes: "", driveUrl: "", files: [] })),
-    tasks: [], contacts: [], journal: [], budget: null
+    tasks: [], contacts: [], journal: [], schedule: null, budget: null
   };
 }
 function normalizeWork(incoming, existing) {
@@ -376,10 +390,15 @@ function normalizeWork(incoming, existing) {
     ...existing, ...incoming, id: existing.id, clientId: existing.clientId, createdAt: existing.createdAt, updatedAt: isoNow(),
     details: { ...existing.details, name: text(details.name, 120), address: text(details.address, 240), type: text(details.type, 80), description: text(details.description, 1500), client: text(details.client, 120), engineer: text(details.engineer, 120), manager: text(details.manager, 120), plannedStart: date(details.plannedStart), plannedEnd: date(details.plannedEnd), status: text(details.status, 50) || "Planejamento" },
     phases: (incoming.phases || []).map((row, order) => ({ id: text(row.id, 80) || uid("etapa"), name: text(row.name, 150) || `Etapa ${order + 1}`, weight: clamp(row.weight), progress: clamp(row.progress), status: text(row.status, 50) || "Não iniciada", owner: text(row.owner, 120), plannedStart: date(row.plannedStart), plannedEnd: date(row.plannedEnd), actualStart: date(row.actualStart), actualEnd: date(row.actualEnd), notes: text(row.notes, 1200), applicable: row.applicable !== false, order })),
-    documents: (incoming.documents || []).map(row => ({ id: text(row.id, 80) || uid("doc"), title: text(row.title, 180) || "Documento", required: row.required !== false, status: text(row.status, 40) || "Pendente", expiry: date(row.expiry), owner: text(row.owner, 120), notes: text(row.notes, 1200), driveUrl: /^https?:\/\//i.test(String(row.driveUrl || "")) ? text(row.driveUrl, 1200) : "", files: Array.isArray(row.files) ? row.files : [] })),
+    documents: (incoming.documents || []).map(row => ({ id: text(row.id, 80) || uid("doc"), title: text(row.title, 180) || "Documento", category: row.category === "projeto" ? "projeto" : "documento", required: row.required !== false, status: text(row.status, 40) || "Pendente", expiry: date(row.expiry), owner: text(row.owner, 120), notes: text(row.notes, 1200), driveUrl: /^https?:\/\//i.test(String(row.driveUrl || "")) ? text(row.driveUrl, 1200) : "", files: Array.isArray(row.files) ? row.files : [] })),
     tasks: (incoming.tasks || []).map(row => ({ id: text(row.id, 80) || uid("pend"), title: text(row.title, 220) || "Pendência", priority: ["Baixa", "Média", "Alta", "Crítica"].includes(row.priority) ? row.priority : "Média", due: date(row.due), owner: text(row.owner, 120), status: row.status === "Concluída" ? "Concluída" : "Aberta", notes: text(row.notes, 1200) })),
     contacts: (incoming.contacts || []).map(row => ({ id: text(row.id, 80) || uid("cont"), name: text(row.name, 150) || "Contato", role: text(row.role, 120), phone: text(row.phone, 60), email: text(row.email, 180) })),
     journal: (incoming.journal || []).map(row => ({ id: text(row.id, 80) || uid("diario"), date: date(row.date) || new Date().toISOString().slice(0, 10), weather: text(row.weather, 40) || "Ensolarado", workday: text(row.workday, 40) || "Normal", rainHours: Math.max(0, Math.min(24, Number(row.rainHours) || 0)), workforce: Math.max(0, Math.round(Number(row.workforce) || 0)), contractorsAbsent: text(row.contractorsAbsent, 600), activities: text(row.activities, 2500), occurrences: text(row.occurrences, 2500), decisions: text(row.decisions, 1800), nextSteps: text(row.nextSteps, 1800), createdAt: row.createdAt || isoNow(), updatedAt: isoNow() })),
+    schedule: incoming.schedule ? {
+      start: date(incoming.schedule.start), end: date(incoming.schedule.end),
+      suppliers: (incoming.schedule.suppliers || []).map(row => ({ id: text(row.id, 80) || uid("forn"), category: text(row.category, 60), name: text(row.name, 150), quote: Math.max(0, Number(row.quote) || 0), notes: text(row.notes, 500) })).filter(row => row.name),
+      items: (incoming.schedule.items || []).map((row, order) => ({ id: text(row.id, 80) || uid("cron"), no: text(row.no, 20) || String(order + 1), name: text(row.name, 220) || `Etapa ${order + 1}`, start: date(row.start), end: date(row.end), phase: text(row.phase, 100), color: /^#[0-9a-f]{6}$/i.test(String(row.color || "")) ? row.color : "#708298", description: text(row.description, 1200), executor: text(row.executor, 150), supplier: text(row.supplier, 150), budget: Math.max(0, Number(row.budget) || 0), status: text(row.status, 50) || "Planejada", progress: clamp(row.progress), orderRefs: [...new Set((row.orderRefs || []).map(value => text(value, 400)).filter(Boolean))] }))
+    } : null,
     budget: normalizedBudget
   };
 }
@@ -415,7 +434,11 @@ function driveIdFromUrl(value) {
 
 async function syncWorkDocumentsFromDrive(work) {
   if (!driveConfigured()) throw new Error("Google Drive ainda não foi conectado no servidor.");
-  const folderIds = [...new Set((work.documents || []).map(row => String(row.driveUrl || "")).filter(url => /\/folders\//i.test(url)).map(driveIdFromUrl).filter(Boolean))];
+  const configuredRoot = driveRoots[work.clientId];
+  const folderIds = [...new Set([
+    ...(work.clientId === "dr_clovis_cmfs" && configuredRoot ? [configuredRoot] : []),
+    ...(work.documents || []).map(row => String(row.driveUrl || "")).filter(url => /\/folders\//i.test(url)).map(driveIdFromUrl).filter(Boolean)
+  ])];
   if (!folderIds.length) throw new Error("Vincule uma pasta do Google Drive em um documento da obra antes de atualizar.");
   const knownIds = new Set((work.documents || []).map(row => driveIdFromUrl(row.driveUrl)).filter(Boolean));
   const files = [];
@@ -423,8 +446,18 @@ async function syncWorkDocumentsFromDrive(work) {
   const uniqueFiles = [...new Map(files.filter(file => !file.mimeType?.endsWith("folder")).map(file => [file.id, file])).values()];
   const newFiles = uniqueFiles.filter(file => !knownIds.has(file.id));
   const importedAt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date());
-  for (const file of newFiles) {
-    work.documents.push({ id: uid("doc"), title: file.name || "Documento do Drive", required: false, status: "Aprovado", expiry: "", owner: "", notes: `Importado automaticamente do Google Drive em ${importedAt}.`, driveUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`, files: [] });
+  if (work.clientId === "dr_clovis_cmfs") {
+    const existingByDriveId = new Map((work.documents || []).map(row => [driveIdFromUrl(row.driveUrl), row]).filter(([id]) => id));
+    work.documents = uniqueFiles.map(file => {
+      const driveUrl = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
+      const existing = existingByDriveId.get(file.id);
+      const category = /projeto|planta|arquitetura|estrutural|el[eé]tric|hidrossanit|fund[aã]a[cç][aã]o/i.test(file.name || "") ? "projeto" : "documento";
+      return existing ? { ...existing, title: file.name || existing.title, category, driveUrl } : { id: uid("doc"), title: file.name || "Documento do Drive", category, required: false, status: "Aprovado", expiry: "", owner: "", notes: `Importado automaticamente do Google Drive em ${importedAt}.`, driveUrl, files: [] };
+    });
+  } else {
+    for (const file of newFiles) {
+      work.documents.push({ id: uid("doc"), title: file.name || "Documento do Drive", required: false, status: "Aprovado", expiry: "", owner: "", notes: `Importado automaticamente do Google Drive em ${importedAt}.`, driveUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`, files: [] });
+    }
   }
   work.updatedAt = isoNow();
   await saveWork(work);

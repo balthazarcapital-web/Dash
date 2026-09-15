@@ -3740,6 +3740,32 @@
           "orderRef": "pedido|dr_clovis_cmfs|2026-07-29|2|ripa-pinus-1-x-3---200-pc;-prego-17x27",
           "orderNumber": "2",
           "createdAt": "2026-08-20T00:08:22.991Z"
+        },
+        {
+          "id": "real_mtae8bu6c3htt1",
+          "itemId": "orc_1_2",
+          "date": "2026-08-17",
+          "type": "Material",
+          "description": "Pedido #01 — TELHA TAPUME AZUL 1,00M X 6,00M\t30\tUN\nPARAFUSO P/ FIXAÇÃO DE TELHA TAPUME\t120\tPC",
+          "reference": "Adriaço • NF 3465",
+          "value": 9062,
+          "source": "Pedido",
+          "orderRef": "pedido|dr_clovis_cmfs|2026-07-29|1|telha-tapume-azul-1,00m-x-6,00m-30-un-parafuso-p/-fixacao-de-telha-tapume-120-pc",
+          "orderNumber": "1",
+          "createdAt": "2026-08-26T17:54:22.830Z"
+        },
+        {
+          "id": "real_mtafeet4klb7u7",
+          "itemId": "orc_1_3",
+          "date": "2026-08-20",
+          "type": "Material",
+          "description": "Pedido #09 — 2 manilhas 80 por 1m",
+          "reference": "Artcima • NF 13400",
+          "value": 461,
+          "source": "Pedido",
+          "orderRef": "pedido|dr_clovis_cmfs|2026-08-06|9|2-manilhas-80-por-1m",
+          "orderNumber": "9",
+          "createdAt": "2026-08-26T18:27:06.232Z"
         }
       ]
     }

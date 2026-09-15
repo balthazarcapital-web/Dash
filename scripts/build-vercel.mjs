@@ -9,5 +9,6 @@ files.push('area-report.js', 'area-report.css', 'rental-executive.js', 'order-ex
 
 await fs.rm(output, { recursive: true, force: true });
 await fs.mkdir(output, { recursive: true });
+files.push("concrete-quotes.js", "concrete-quotes.css");
 for (const file of files) await fs.copyFile(path.join(root, file), path.join(output, file));
 for (const directory of directories) await fs.cp(path.join(root, directory), path.join(output, directory), { recursive: true });

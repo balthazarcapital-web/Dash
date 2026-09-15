@@ -1,8 +1,41 @@
 (function(){
   "use strict";
   const clients=window.DASHBOARD_CLIENTS||{deterlimp:{...window.DETERLIMP_CONFIG,id:"deterlimp",name:"Deterlimp",shortName:"DETERLIMP",work:"Deterlimp",snapshot:window.DETERLIMP_DATA}};
+  const clientPins={dr_clovis_cmfs:"1111",carlos_bezerra:"2222",clinica_gianna:"3333",deterlimp:"4444"};
+  const authorizedClients=()=>{try{return JSON.parse(sessionStorage.getItem("dashboard-authorized-clients")||"[]")}catch{return[]}};
+  const isAuthorized=clientId=>authorizedClients().includes(clientId);
+  const authorizeClient=(clientId,required=false)=>{
+    const client=clients[clientId];
+    if(!client)return Promise.resolve(null);
+    return new Promise(resolve=>{
+      let backdrop=document.querySelector("#client-pin-backdrop");
+      if(!backdrop){
+        backdrop=document.createElement("div");
+        backdrop.id="client-pin-backdrop";
+        backdrop.className="client-pin-backdrop";
+        backdrop.innerHTML=`<section class="client-pin-modal" role="dialog" aria-modal="true"><h2>Acesso ao painel</h2><p>Selecione o cliente e digite o PIN correspondente.</p><label>Cliente<select id="client-pin-client" aria-label="Cliente para acesso"></select></label><label>PIN<input id="client-pin-input" type="password" inputmode="numeric" maxlength="12" placeholder="Digite o PIN"></label><small id="client-pin-error"></small><div><button type="button" id="client-pin-cancel">Cancelar</button><button type="button" id="client-pin-submit">Entrar</button></div></section>`;
+        document.body.append(backdrop);
+      }
+      const input=backdrop.querySelector("#client-pin-input"),error=backdrop.querySelector("#client-pin-error"),clientField=backdrop.querySelector("#client-pin-client");
+      clientField.innerHTML=Object.values(clients).map(item=>`<option value="${item.id}">${item.name}</option>`).join("");
+      clientField.value=clientId;
+      input.value="";error.textContent="";backdrop.hidden=false;
+      backdrop.querySelector("#client-pin-cancel").hidden=required;
+      backdrop.querySelector("#client-pin-cancel").onclick=()=>{backdrop.hidden=true;resolve(null)};
+      backdrop.querySelector("#client-pin-submit").onclick=()=>{
+        const selectedClientId=clientField.value;
+        if(input.value.trim()!==clientPins[selectedClientId]){error.textContent="PIN incorreto para o cliente selecionado.";input.select();return}
+        const next=[...new Set([...authorizedClients(),selectedClientId])];
+        sessionStorage.setItem("dashboard-authorized-clients",JSON.stringify(next));
+        backdrop.hidden=true;resolve(selectedClientId);
+      };
+      input.onkeydown=event=>{if(event.key==="Enter")backdrop.querySelector("#client-pin-submit").click()};
+      setTimeout(()=>input.focus(),0);
+    });
+  };
   const savedClient=localStorage.getItem("dashboard-client");
-  let config=clients[savedClient]||clients.deterlimp||Object.values(clients)[0];
+  let config=clients.deterlimp||Object.values(clients)[0];
+  if(savedClient&&clients[savedClient]&&isAuthorized(savedClient))config=clients[savedClient];
   let snapshot=config.snapshot||[];
   const colors=["#43b581","#ffb547","#7fa6ff","#9a8bf2","#8792a6"];
   const requestedView=({cotacoes:'quotes',locacoes:'rentals'})[new URLSearchParams(window.location.search).get('modo')]||'overview';
@@ -47,6 +80,9 @@
   }
   async function switchClient(clientId){
     if(!clients[clientId]||clientId===state.clientId)return;
+    const approvedClientId=await authorizeClient(clientId);
+    if(!approvedClientId){$("#client-select").value=state.clientId;return}
+    clientId=approvedClientId;
     config=clients[clientId];snapshot=config.snapshot||[];state.clientId=config.id;localStorage.setItem("dashboard-client",config.id);
     clearOperationalFilters();state.activeView="overview";state.data=[];state.filtered=[];state.page=1;
     ["#status-filter","#category-filter"].forEach(selector=>{const element=$(selector);while(element.options.length>1)element.remove(1)});
@@ -57,16 +93,17 @@
 
   function applyFilters(){const now=new Date();state.filtered=state.data.filter(o=>{if(state.period!=="all"&&o.date){const d=new Date(o.date+"T12:00:00");if((now-d)/864e5>Number(state.period))return false}const hay=norm([o.description,o.supplier,o.invoice,o.number,o.category,o.status].join(" "));if(state.search&&!hay.includes(norm(state.search)))return false;if(state.status&&o.status!==state.status)return false;if(state.category&&o.category!==state.category)return false;if(state.nf==="with"&&!hasNF(o))return false;if(state.nf==="without"&&hasNF(o))return false;if(state.paymentOnly&&!pendingPayment(o))return false;return true}).sort((a,b)=>(b.date||"").localeCompare(a.date||"")||state.data.indexOf(b)-state.data.indexOf(a));const pages=Math.max(1,Math.ceil(state.filtered.length/state.pageSize));state.page=Math.min(state.page,pages)}
   function rentals(){return JSON.parse(localStorage.getItem(`dashboard-rentals-${state.clientId}`)||"[]")}
-  function rentalState(r){return JSON.parse(localStorage.getItem(`dashboard-rental-status-${state.clientId}`)||"{}")[r.id]||r.status||"Ativa"}
-  function openRentalDrawer(r){const status=rentalState(r);$("#drawer-title").textContent=`Locação — ${r.item}`;$("#drawer-content").innerHTML=`<div class="detail-hero"><span class="status-chip ${status==='Finalizado'?'status-entregue':'status-faturado'}">${escapeHtml(status)}</span><h3>${escapeHtml(r.item)}</h3><p style="color:var(--muted);font-size:12px">${escapeHtml(r.supplier||"Fornecedor não informado")}</p></div><div class="detail-grid"><div class="detail-field"><label>Pedido registrado</label><strong>${fmtDate(r.sent)||"Não informado"}</strong></div><div class="detail-field"><label>Vencimento</label><strong>${fmtDate(r.due)||"Não definido"}</strong></div><div class="detail-field"><label>Próxima troca</label><strong>${fmtDate(r.exchange)||"Não definida"}</strong></div><div class="detail-field"><label>Valor mensal</label><strong>${r.value?money.format(r.value):"Não informado"}</strong></div></div><div class="detail-section"><h4>Atualizar situação</h4><div class="rental-drawer-actions"><button class="button button-secondary" data-rental-status="Chegou na obra">✓ Chegou na obra</button><button class="button button-secondary" data-rental-status="Em uso">Em uso</button><button class="button button-secondary" data-rental-status="Trocado">↻ Foi trocado</button><button class="button button-primary" data-rental-status="Finalizado">Finalizado / devolvido</button></div></div>`;$("#drawer-backdrop").hidden=false;requestAnimationFrame(()=>$("#detail-drawer").classList.add("open"));$("#detail-drawer").setAttribute("aria-hidden","false");$("#detail-content")?.scrollTo?.(0,0);$("#drawer-content").querySelectorAll("[data-rental-status]").forEach(b=>b.onclick=()=>{const all=JSON.parse(localStorage.getItem(`dashboard-rental-status-${state.clientId}`)||"{}");all[r.id]=b.dataset.rentalStatus;localStorage.setItem(`dashboard-rental-status-${state.clientId}`,JSON.stringify(all));closeDrawer();renderAll();showToast(`Locação marcada como ${b.dataset.rentalStatus}`)})}
+  function rentalMeta(r){const saved=JSON.parse(localStorage.getItem(`dashboard-rental-status-${state.clientId}`)||"{}")[r.id];return typeof saved==="string"?{status:saved}:saved||{status:r.status||"Ativa"}}
+  function saveRentalMeta(r,changes){const key=`dashboard-rental-status-${state.clientId}`,all=JSON.parse(localStorage.getItem(key)||"{}"),current=typeof all[r.id]==="string"?{status:all[r.id]}:all[r.id]||{};all[r.id]={...current,...changes};localStorage.setItem(key,JSON.stringify(all));return all[r.id]}
+  function rentalState(r){return rentalMeta(r).status||r.status||"Ativa"}
+  function openRentalDrawer(r){const status=rentalState(r),meta=rentalMeta(r);$("#drawer-title").textContent=`Locação — ${r.item}`;$("#drawer-content").innerHTML=`<div class="detail-hero"><span class="status-chip ${status==='Finalizado'?'status-entregue':'status-faturado'}">${escapeHtml(status)}</span><h3>${escapeHtml(r.item)}</h3><p style="color:var(--muted);font-size:12px">${escapeHtml(r.supplier||"Fornecedor não informado")}</p></div><div class="detail-section"><h4>Datas da locação</h4><p class="rental-date-help">Preencha ou corrija as datas abaixo. Elas ficam salvas neste controle.</p><div class="rental-date-editor"><label>Data da solicitação<input type="date" data-rental-date="requestedAt" value="${escapeHtml(meta.requestedAt||r.sent||"")}"></label><label>Entregue na obra<input type="date" data-rental-date="deliveredAt" value="${escapeHtml(meta.deliveredAt||"")}"></label><label>Data que saiu da obra<input type="date" data-rental-date="leftAt" value="${escapeHtml(meta.leftAt||"")}"></label></div><button class="button button-primary full-width" data-save-rental-dates>Salvar datas</button></div><div class="detail-grid"><div class="detail-field"><label>Vencimento</label><strong>${fmtDate(r.due)||"Não definido"}</strong></div><div class="detail-field"><label>Próxima troca</label><strong>${fmtDate(r.exchange)||"Não definida"}</strong></div><div class="detail-field"><label>Valor mensal</label><strong>${r.value?money.format(r.value):"Não informado"}</strong></div></div><div class="detail-section"><h4>Atualizar situação</h4><div class="rental-drawer-actions"><button class="button button-secondary" data-rental-status="Chegou na obra">✓ Chegou na obra</button><button class="button button-secondary" data-rental-status="Em uso">Em uso</button><button class="button button-secondary" data-rental-status="Trocado">↻ Foi trocado</button><button class="button button-primary" data-rental-status="Finalizado">Finalizado / devolvido</button></div></div>`;$("#drawer-backdrop").hidden=false;requestAnimationFrame(()=>$("#detail-drawer").classList.add("open"));$("#detail-drawer").setAttribute("aria-hidden","false");$("#detail-content")?.scrollTo?.(0,0);$("#drawer-content").querySelector("[data-save-rental-dates]").onclick=()=>{const values={};$("#drawer-content").querySelectorAll("[data-rental-date]").forEach(input=>values[input.dataset.rentalDate]=input.value||null);saveRentalMeta(r,values);closeDrawer();renderAll();showToast("Datas da locação salvas")};$("#drawer-content").querySelectorAll("[data-rental-status]").forEach(b=>b.onclick=()=>{const next={...rentalMeta(r),status:b.dataset.rentalStatus};if(["Chegou na obra","Em uso","Trocado"].includes(b.dataset.rentalStatus)&&!next.deliveredAt)next.deliveredAt=new Date().toISOString().slice(0,10);if(b.dataset.rentalStatus==="Finalizado"&&!next.leftAt)next.leftAt=new Date().toISOString().slice(0,10);saveRentalMeta(r,next);closeDrawer();renderAll();showToast(`Locação marcada como ${b.dataset.rentalStatus}`)})}
   function renderRentals(){const fromBase=state.data.filter(o=>norm(o.category).includes("loca")).map((o,i)=>({id:`base-${state.clientId}-${i}`,item:o.description,supplier:o.supplier,sent:o.date,due:o.due,value:o.value,status:"Ativa",label:/troca/i.test(o.description)?"Troca":/retir|devol/i.test(o.description)?"Retirada":"Inicial",fromBase:true})),manual=rentals(),rows=[...fromBase,...manual.filter(r=>!fromBase.some(b=>b.item===r.item&&b.sent===r.sent))],now=Date.now(),active=rows.filter(r=>rentalState(r)!=="Finalizado"),due=active.filter(r=>r.due&&(new Date(r.due+"T12:00:00")-now)<8*864e5),returns=active.filter(r=>!r.returned);$("#rental-active-count").textContent=active.length;$("#rental-due-count").textContent=due.length;$("#rental-return-count").textContent=returns.length;$("#nav-rental-count").textContent=active.length;$("#rental-summary").textContent=`${rows.length} registros`;$("#rental-list").innerHTML=rows.map((r,i)=>{const status=rentalState(r);return`<article class="rental-row" data-rental-open="${i}" role="button" tabindex="0"><div><strong>${escapeHtml(r.item)}</strong><small>${escapeHtml(r.supplier||"Fornecedor não informado")} • ${r.fromBase?"Pedido da base":"Controle manual"} • Enviado ${fmtDate(r.sent)||"não informado"}</small></div><span class="rental-status-tag ${norm(r.label||"Inicial")}">${escapeHtml(r.label||"Inicial")}</span><span class="rental-status ${status==='Finalizado'?'done':due.includes(r)?'warning':''}">${escapeHtml(status)}${status==='Ativa'&&r.due?` • vence ${fmtDate(r.due)}`:""}</span><div class="rental-meta"><span>Troca: ${fmtDate(r.exchange)||"—"}</span><span>${r.value?money.format(r.value)+"/mês":"Valor —"}</span></div></article>`}).join("")||'<div class="empty-state">Nenhuma locação cadastrada para este cliente.</div>';const alerts=rows.filter(r=>r.status!=="Finalizado"&&(!r.payment||/boleto|pendente/i.test(r.payment)||!r.due));const alertRoot=$("#rental-alerts");if(alertRoot){alertRoot.hidden=!alerts.length;alertRoot.innerHTML=alerts.length?`<strong>⚠ Atenção nas locações</strong><span>${alerts.length} pedido(s) precisam de boleto, vencimento ou conferência.</span>`:""}renderRentalKanban(rows)}
-  function rentalRequestBadge(r){
-    const date=String(r.sent||""),parsed=new Date(date+"T12:00:00Z");
+  function rentalDateBadge(date,label){
+    date=String(date||"");const parsed=new Date(date+"T12:00:00Z");
     const valid=/^\d{4}-\d{2}-\d{2}$/.test(date)&&Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===date;
-    const label=r.fromBase?"Solicitado em":"Envio informado";
-    return valid?'<span class="rental-request-date"><span aria-hidden="true">◷</span> '+label+' <time datetime="'+date+'">'+escapeHtml(fmtDate(date))+'</time></span>':'<span class="rental-request-date missing">'+(r.fromBase?"Solicitação":"Envio")+': data não informada</span>';
+    return valid?'<span class="rental-request-date"><span aria-hidden="true">◷</span> '+escapeHtml(label)+' <time datetime="'+date+'">'+escapeHtml(fmtDate(date))+'</time></span>':'';
   }
-function renderRentalKanban(rows){const map={Solicitado:[],Entregue:[],Finalizado:[]};rows.forEach((r,i)=>{let status=rentalState(r);if(status==="Ativa"||status==="Em uso"||status==="Chegou na obra"||status==="Trocado")status="Entregue";if(!map[status])status="Solicitado";map[status].push({...r,index:i})});Object.entries(map).forEach(([status,items])=>{$(`[data-kanban-count="${status}"]`).textContent=items.length;$(`[data-kanban-list="${status}"]`).innerHTML=items.map(r=>`<article class="rental-kanban-card" draggable="true" data-rental-card="${r.index}" data-rental-open="${r.index}"><div class="rental-kanban-tags"><span class="rental-status-tag ${norm(r.label||"Inicial")}">${escapeHtml(r.label||"Inicial")}</span><span class="rental-status-tag ${status.toLowerCase()}">${escapeHtml(status)}</span></div>${rentalRequestBadge(r)}<strong>${escapeHtml(r.item)}</strong><small>${escapeHtml(r.supplier||"Fornecedor não informado")}</small><span>${r.due?`Vence ${fmtDate(r.due)}`:"Sem vencimento"}</span></article>`).join("")||'<div class="kanban-empty">Nenhum pedido</div>'})}
+function renderRentalKanban(rows){const map={Solicitado:[],Entregue:[],Finalizado:[]};rows.forEach((r,i)=>{let status=rentalState(r);if(status==="Ativa"||status==="Em uso"||status==="Chegou na obra"||status==="Trocado")status="Entregue";if(!map[status])status="Solicitado";map[status].push({...r,index:i})});Object.entries(map).forEach(([status,items])=>{$(`[data-kanban-count="${status}"]`).textContent=items.length;$(`[data-kanban-list="${status}"]`).innerHTML=items.map(r=>{const meta=rentalMeta(r);return`<article class="rental-kanban-card" draggable="true" data-rental-card="${r.index}" data-rental-open="${r.index}"><div class="rental-kanban-tags"><span class="rental-status-tag ${norm(r.label||"Inicial")}">${escapeHtml(r.label||"Inicial")}</span><span class="rental-status-tag ${status.toLowerCase()}">${escapeHtml(status)}</span></div>${rentalDateBadge(meta.requestedAt||r.sent,r.fromBase?"Solicitado em":"Enviado em")}${rentalDateBadge(meta.deliveredAt,"Entregue na obra")}${rentalDateBadge(meta.leftAt,"Saiu da obra")}<strong>${escapeHtml(r.item)}</strong><small>${escapeHtml(r.supplier||"Fornecedor não informado")}</small><span>${r.due?`Vence ${fmtDate(r.due)}`:"Sem vencimento"}</span></article>`}).join("")||'<div class="kanban-empty">Nenhum pedido</div>'})}
   function renderAll(){applyFilters();renderKpis();renderStatus();renderCategories();renderAttention();renderTable();populateFilters();updateFilterCount();renderActiveFilters();renderNavigation();renderRentals();renderClimate()}
   function renderClimate(){
     const page=$("#climate"),select=$("#climate-page-month"),api=window.WorkReport;
@@ -152,7 +189,7 @@ function renderRentalKanban(rows){const map={Solicitado:[],Entregue:[],Finalizad
   $$('[data-rental-tab]').forEach(button=>button.addEventListener('click',()=>{$$('[data-rental-tab]').forEach(item=>item.classList.toggle('active',item===button));$$('[data-rental-panel]').forEach(panel=>panel.hidden=panel.dataset.rentalPanel!==button.dataset.rentalTab)}));
   document.addEventListener('dragstart',event=>{const card=event.target.closest('[data-rental-card]');if(card)event.dataTransfer.setData('text/plain',card.dataset.rentalCard)});
   document.addEventListener('dragover',event=>{if(event.target.closest('[data-rental-drop]'))event.preventDefault()});
-  document.addEventListener('drop',event=>{const column=event.target.closest('[data-rental-drop]');if(!column)return;event.preventDefault();const index=Number(event.dataTransfer.getData('text/plain'));const base=state.data.filter(o=>norm(o.category).includes('loca')).map((o,i)=>({id:`base-${state.clientId}-${i}`,item:o.description,supplier:o.supplier,sent:o.date,due:o.due,value:o.value,status:'Ativa'})),rows=[...base,...rentals().filter(r=>!base.some(x=>x.item===r.item&&x.sent===r.sent))],row=rows[index];if(!row)return;const all=JSON.parse(localStorage.getItem(`dashboard-rental-status-${state.clientId}`)||'{}');all[row.id]=column.dataset.rentalDrop;localStorage.setItem(`dashboard-rental-status-${state.clientId}`,JSON.stringify(all));renderAll();showToast(`Locação movida para ${column.dataset.rentalDrop}`)});
+  document.addEventListener('drop',event=>{const column=event.target.closest('[data-rental-drop]');if(!column)return;event.preventDefault();const index=Number(event.dataTransfer.getData('text/plain'));const base=state.data.filter(o=>norm(o.category).includes('loca')).map((o,i)=>({id:`base-${state.clientId}-${i}`,item:o.description,supplier:o.supplier,sent:o.date,due:o.due,value:o.value,status:'Ativa'})),rows=[...base,...rentals().filter(r=>!base.some(x=>x.item===r.item&&x.sent===r.sent))],row=rows[index];if(!row)return;const next={...rentalMeta(row),status:column.dataset.rentalDrop};if(column.dataset.rentalDrop==='Entregue'&&!next.deliveredAt)next.deliveredAt=new Date().toISOString().slice(0,10);if(column.dataset.rentalDrop==='Finalizado'&&!next.leftAt)next.leftAt=new Date().toISOString().slice(0,10);saveRentalMeta(row,next);renderAll();showToast(`Locação movida para ${column.dataset.rentalDrop}`)});
   $("#sync-button").addEventListener("click",()=>{loadData(true);window.RentalManagement?.refresh();});
   $("#client-select").addEventListener("change",event=>switchClient(event.target.value));
   function openOrdersExecutive(){
@@ -234,7 +271,12 @@ function renderRentalKanban(rows){const map={Solicitado:[],Entregue:[],Finalizad
   updateClientChrome();
   window.DeterlimpQuotes?.init({orders:()=>state.data,toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
   window.WorkManagement?.init({orders:()=>state.data.map((order,index)=>({...order,reportRef:orderCostRef(order,index)})),toast:showToast,client:{id:config.id,name:config.name,work:config.work||config.name}});
-  if(requestedView==="quotes")window.DeterlimpQuotes?.enter();
-  loadData();
+  (async()=>{
+    const selectedClientId=await authorizeClient(config.id,true);
+    if(!selectedClientId)return;
+    if(selectedClientId!==state.clientId)await switchClient(selectedClientId);
+    else await loadData();
+    if(requestedView==="quotes")window.DeterlimpQuotes?.enter();
+  })();
   $("#overview-report-button")?.addEventListener("click",openOrdersExecutive);
 })();

@@ -14,8 +14,15 @@ public
 gestao-obra-export
 tests
 docs
+tmp
+Krypta_Investor_Kit
+Relatorio_Cronograma_Obra_Dr_Clovis
 .env*
 *.zip
 *.tar.gz
+*.pdf
+*.docx
 *.traineddata
 *.log
+Timeline_Gantt_Veneto_Fundacoes.html
+cronograma-dr-clovis.html
