@@ -27,7 +27,7 @@ const weatherCache = new Map();
 const driveRoots = {
   deterlimp: process.env.GOOGLE_DRIVE_ROOT_DETERLIMP || "1F5mfcQ6STExZHtbbCr_QCYV1FUjznw3z",
   carlos_bezerra: process.env.GOOGLE_DRIVE_ROOT_CARLOS_BEZERRA || "1ShnoGQbYwC947ZKN1ziV43az5AJrd94d",
-  dr_clovis_cmfs: process.env.GOOGLE_DRIVE_ROOT_DR_CLOVIS_CMFS || "1MenF8_QQ52eg1pRP39fiQv2n1hP9pRFc",
+  dr_clovis_cmfs: process.env.GOOGLE_DRIVE_ROOT_DR_CLOVIS_CMFS || "19TNh8CXWDm-lGASIxMG9PeTt3tTe6swb",
   clinica_gianna: process.env.GOOGLE_DRIVE_ROOT_CLINICA_GIANNA || "1FErPPJh_DK3VdoOXIMPQpL5MCuZ1oxfF"
 };
 // Estado compartilhado do dashboard fica em uma pasta normal do Drive. Isso
@@ -440,7 +440,11 @@ function driveIdFromUrl(value) {
 
 async function syncWorkDocumentsFromDrive(work) {
   if (!driveConfigured()) throw new Error("Google Drive ainda não foi conectado no servidor.");
-  const folderIds = [...new Set((work.documents || []).map(row => String(row.driveUrl || "")).filter(url => /\/folders\//i.test(url)).map(driveIdFromUrl).filter(Boolean))];
+  const configuredRoot = driveRoots[work.clientId];
+  const folderIds = [...new Set([
+    ...(work.clientId === "dr_clovis_cmfs" && configuredRoot ? [configuredRoot] : []),
+    ...(work.documents || []).map(row => String(row.driveUrl || "")).filter(url => /\/folders\//i.test(url)).map(driveIdFromUrl).filter(Boolean)
+  ])];
   if (!folderIds.length) throw new Error("Vincule uma pasta do Google Drive em um documento da obra antes de atualizar.");
   const knownIds = new Set((work.documents || []).map(row => driveIdFromUrl(row.driveUrl)).filter(Boolean));
   const files = [];
@@ -448,8 +452,17 @@ async function syncWorkDocumentsFromDrive(work) {
   const uniqueFiles = [...new Map(files.filter(file => !file.mimeType?.endsWith("folder")).map(file => [file.id, file])).values()];
   const newFiles = uniqueFiles.filter(file => !knownIds.has(file.id));
   const importedAt = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short", timeZone: "America/Sao_Paulo" }).format(new Date());
-  for (const file of newFiles) {
-    work.documents.push({ id: uid("doc"), title: file.name || "Documento do Drive", required: false, status: "Aprovado", expiry: "", owner: "", notes: `Importado automaticamente do Google Drive em ${importedAt}.`, driveUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`, files: [] });
+  if (work.clientId === "dr_clovis_cmfs") {
+    const existingByDriveId = new Map((work.documents || []).map(row => [driveIdFromUrl(row.driveUrl), row]).filter(([id]) => id));
+    work.documents = uniqueFiles.map(file => {
+      const driveUrl = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
+      const existing = existingByDriveId.get(file.id);
+      return existing ? { ...existing, title: file.name || existing.title, driveUrl } : { id: uid("doc"), title: file.name || "Documento do Drive", required: false, status: "Aprovado", expiry: "", owner: "", notes: `Importado automaticamente do Google Drive em ${importedAt}.`, driveUrl, files: [] };
+    });
+  } else {
+    for (const file of newFiles) {
+      work.documents.push({ id: uid("doc"), title: file.name || "Documento do Drive", required: false, status: "Aprovado", expiry: "", owner: "", notes: `Importado automaticamente do Google Drive em ${importedAt}.`, driveUrl: file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`, files: [] });
+    }
   }
   work.updatedAt = isoNow();
   await saveWork(work);
