@@ -14,6 +14,10 @@ Depois acesse `http://localhost:4173`.
 
 O terminal precisa permanecer aberto durante o uso. O serviço local é necessário para ler PDFs, executar OCR em imagens, guardar rascunhos e gerar arquivos Excel.
 
+## Publicação
+
+Após cada atualização, incremente a versão em `web-demo.js`, registre um commit, envie-o para `main` e confirme no site publicado que a nova versão aparece no menu lateral. O deploy de produção é acionado automaticamente pelo GitHub.
+
 ## Fonte dos dados
 
 O dashboard tenta ler a aba `Respostas ao formulário 1` da planilha configurada em `data.js`. Se a planilha não permitir leitura pública pelo endpoint CSV do Google, a interface usa automaticamente o retrato local incluído no mesmo arquivo.

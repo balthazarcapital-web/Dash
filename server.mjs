@@ -40,6 +40,9 @@ const spreadsheetBases = {
   clinica_gianna: { id: "1_LTDwN25pSKXfofahLgFiRGndb79cWNHxi8iR3v_VHM", gid: "1856239408" },
   dr_clovis_cmfs: { id: "1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU", gid: "1856239408" }
 };
+const scheduleBases = {
+  dr_clovis_cmfs: { id: "1_zlKGOP_I5EKbLAznvuEys4nc_UTqwtn-wBsYo13fzs", sheet: "Página1" }
+};
 const drivePilot = {
   clientId: "deterlimp", number: "5", category: "Hidráulica", folderId: "1xon5pJF9nxvWZHqKY3IpWOcVcrjRwz1a",
   files: [
@@ -277,24 +280,17 @@ async function saveQuote(quote) {
 }
 
 async function readWorks() {
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
+  if (isVercel && driveConfigured()) {
     try {
-      const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/drive_sync_records?select=client_id,payload&drive_id=like.work-state:*`, { headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}` } });
-      if (response.ok) {
-        const records = await response.json();
-        return records.map(record => record.payload).filter(Boolean);
-      }
-    } catch {}
+      return await readDriveState("absolutta-dashboard-works.json", []);
+    } catch (error) {
+      console.warn("Google Drive indisponível ao ler obras; usando dados publicados.", error.message);
+      try { return JSON.parse(await fs.readFile(publishedWorksPath, "utf8")); } catch { return []; }
+    }
   }
-  if (isVercel && driveConfigured()) return readDriveState("absolutta-dashboard-works.json", []);
   try { return JSON.parse(await fs.readFile(worksStorePath, "utf8")); } catch { return []; }
 }
 async function writeWorks(rows) {
-  if (process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY) {
-    const records = rows.map(work => ({ client_id: work.clientId, drive_id: `work-state:${work.clientId}`, record_type: "file", name: `Gestão da obra — ${work.details?.name || work.clientId}`, mime_type: "application/json", payload: work, synced_at: isoNow() }));
-    const response = await fetch(`${process.env.SUPABASE_URL}/rest/v1/drive_sync_records?on_conflict=client_id,drive_id`, { method: "POST", headers: { apikey: process.env.SUPABASE_SERVICE_ROLE_KEY, Authorization: `Bearer ${process.env.SUPABASE_SERVICE_ROLE_KEY}`, "Content-Type": "application/json", Prefer: "resolution=merge-duplicates,return=minimal" }, body: JSON.stringify(records) });
-    if (response.ok) return;
-  }
   if (isVercel && driveConfigured()) return writeDriveState("absolutta-dashboard-works.json", rows);
   const temp = `${worksStorePath}.tmp`;
   await fs.writeFile(temp, JSON.stringify(rows, null, 2), "utf8");
@@ -366,7 +362,7 @@ function newWork(clientId, clientName = "Obra") {
     details: { name: clientName, address: "", type: "", description: "", client: clientName, engineer: "", manager: "", plannedStart: "", plannedEnd: "", status: "Planejamento" },
     phases: phaseSeed.map(([name, weight], order) => ({ id: uid("etapa"), name, weight, progress: 0, status: "Não iniciada", owner: "", plannedStart: "", plannedEnd: "", actualStart: "", actualEnd: "", notes: "", applicable: true, order })),
     documents: documentSeed.map(title => ({ id: uid("doc"), title, required: true, status: "Pendente", expiry: "", owner: "", notes: "", driveUrl: "", files: [] })),
-    tasks: [], contacts: [], journal: [], schedule: null, budget: null
+    tasks: [], contacts: [], journal: [], budget: null
   };
 }
 function normalizeWork(incoming, existing) {
@@ -390,21 +386,24 @@ function normalizeWork(incoming, existing) {
     ...existing, ...incoming, id: existing.id, clientId: existing.clientId, createdAt: existing.createdAt, updatedAt: isoNow(),
     details: { ...existing.details, name: text(details.name, 120), address: text(details.address, 240), type: text(details.type, 80), description: text(details.description, 1500), client: text(details.client, 120), engineer: text(details.engineer, 120), manager: text(details.manager, 120), plannedStart: date(details.plannedStart), plannedEnd: date(details.plannedEnd), status: text(details.status, 50) || "Planejamento" },
     phases: (incoming.phases || []).map((row, order) => ({ id: text(row.id, 80) || uid("etapa"), name: text(row.name, 150) || `Etapa ${order + 1}`, weight: clamp(row.weight), progress: clamp(row.progress), status: text(row.status, 50) || "Não iniciada", owner: text(row.owner, 120), plannedStart: date(row.plannedStart), plannedEnd: date(row.plannedEnd), actualStart: date(row.actualStart), actualEnd: date(row.actualEnd), notes: text(row.notes, 1200), applicable: row.applicable !== false, order })),
-    documents: (incoming.documents || []).map(row => ({ id: text(row.id, 80) || uid("doc"), title: text(row.title, 180) || "Documento", category: row.category === "projeto" ? "projeto" : "documento", required: row.required !== false, status: text(row.status, 40) || "Pendente", expiry: date(row.expiry), owner: text(row.owner, 120), notes: text(row.notes, 1200), driveUrl: /^https?:\/\//i.test(String(row.driveUrl || "")) ? text(row.driveUrl, 1200) : "", files: Array.isArray(row.files) ? row.files : [] })),
+    documents: (incoming.documents || []).map(row => ({ id: text(row.id, 80) || uid("doc"), title: text(row.title, 180) || "Documento", required: row.required !== false, status: text(row.status, 40) || "Pendente", expiry: date(row.expiry), owner: text(row.owner, 120), notes: text(row.notes, 1200), driveUrl: /^https?:\/\//i.test(String(row.driveUrl || "")) ? text(row.driveUrl, 1200) : "", files: Array.isArray(row.files) ? row.files : [] })),
     tasks: (incoming.tasks || []).map(row => ({ id: text(row.id, 80) || uid("pend"), title: text(row.title, 220) || "Pendência", priority: ["Baixa", "Média", "Alta", "Crítica"].includes(row.priority) ? row.priority : "Média", due: date(row.due), owner: text(row.owner, 120), status: row.status === "Concluída" ? "Concluída" : "Aberta", notes: text(row.notes, 1200) })),
     contacts: (incoming.contacts || []).map(row => ({ id: text(row.id, 80) || uid("cont"), name: text(row.name, 150) || "Contato", role: text(row.role, 120), phone: text(row.phone, 60), email: text(row.email, 180) })),
     journal: (incoming.journal || []).map(row => ({ id: text(row.id, 80) || uid("diario"), date: date(row.date) || new Date().toISOString().slice(0, 10), weather: text(row.weather, 40) || "Ensolarado", workday: text(row.workday, 40) || "Normal", rainHours: Math.max(0, Math.min(24, Number(row.rainHours) || 0)), workforce: Math.max(0, Math.round(Number(row.workforce) || 0)), contractorsAbsent: text(row.contractorsAbsent, 600), activities: text(row.activities, 2500), occurrences: text(row.occurrences, 2500), decisions: text(row.decisions, 1800), nextSteps: text(row.nextSteps, 1800), createdAt: row.createdAt || isoNow(), updatedAt: isoNow() })),
-    schedule: incoming.schedule ? {
-      start: date(incoming.schedule.start), end: date(incoming.schedule.end),
-      suppliers: (incoming.schedule.suppliers || []).map(row => ({ id: text(row.id, 80) || uid("forn"), category: text(row.category, 60), name: text(row.name, 150), quote: Math.max(0, Number(row.quote) || 0), notes: text(row.notes, 500) })).filter(row => row.name),
-      items: (incoming.schedule.items || []).map((row, order) => ({ id: text(row.id, 80) || uid("cron"), no: text(row.no, 20) || String(order + 1), name: text(row.name, 220) || `Etapa ${order + 1}`, start: date(row.start), end: date(row.end), phase: text(row.phase, 100), color: /^#[0-9a-f]{6}$/i.test(String(row.color || "")) ? row.color : "#708298", description: text(row.description, 1200), executor: text(row.executor, 150), supplier: text(row.supplier, 150), budget: Math.max(0, Number(row.budget) || 0), status: text(row.status, 50) || "Planejada", progress: clamp(row.progress), orderRefs: [...new Set((row.orderRefs || []).map(value => text(value, 400)).filter(Boolean))] }))
-    } : null,
     budget: normalizedBudget
   };
 }
 async function getOrCreateWork(clientId, clientName = "") {
   const rows = await readWorks(); let work = rows.find(row => row.clientId === clientId);
-  if (!work) { work = (await publishedWork(clientId)) || newWork(clientId, clientName || clientId); rows.unshift(work); await writeWorks(rows); }
+  if (!work) {
+    work = (await publishedWork(clientId)) || newWork(clientId, clientName || clientId);
+    rows.unshift(work);
+    try { await writeWorks(rows); }
+    catch (error) {
+      if (!isVercel) throw error;
+      console.warn("Google Drive indisponível ao inicializar obra; servindo dados publicados.", error.message);
+    }
+  }
   else {
     let changed = false;
     const restored = restorePublishedWork(work, await publishedWork(clientId));
@@ -418,7 +417,14 @@ async function getOrCreateWork(clientId, clientName = "") {
     if (clientId === "dr_clovis_cmfs" && !(work.documents || []).some(row => row.driveUrl?.includes("19Zu1QQOW64b5bCFQ2mHQP3AwYqe7zYI2"))) {
       work.documents = [...(work.documents || []), { id: uid("doc"), title: "Orçamento da Obra CLI", required: false, status: "Aprovado", expiry: "", owner: "", notes: "Planilha-base do orçamento detalhado da obra, com material, mão de obra e taxa administrativa.", driveUrl: "https://drive.google.com/file/d/19Zu1QQOW64b5bCFQ2mHQP3AwYqe7zYI2/view?usp=drivesdk", files: [] }]; changed = true;
     }
-    if (changed) { work.updatedAt = isoNow(); await writeWorks(rows); }
+    if (changed) {
+      work.updatedAt = isoNow();
+      try { await writeWorks(rows); }
+      catch (error) {
+        if (!isVercel) throw error;
+        console.warn("Google Drive indisponível ao restaurar obra; servindo dados publicados.", error.message);
+      }
+    }
   }
   return work;
 }
@@ -451,8 +457,7 @@ async function syncWorkDocumentsFromDrive(work) {
     work.documents = uniqueFiles.map(file => {
       const driveUrl = file.webViewLink || `https://drive.google.com/file/d/${file.id}/view`;
       const existing = existingByDriveId.get(file.id);
-      const category = /projeto|planta|arquitetura|estrutural|el[eé]tric|hidrossanit|fund[aã]a[cç][aã]o/i.test(file.name || "") ? "projeto" : "documento";
-      return existing ? { ...existing, title: file.name || existing.title, category, driveUrl } : { id: uid("doc"), title: file.name || "Documento do Drive", category, required: false, status: "Aprovado", expiry: "", owner: "", notes: `Importado automaticamente do Google Drive em ${importedAt}.`, driveUrl, files: [] };
+      return existing ? { ...existing, title: file.name || existing.title, driveUrl } : { id: uid("doc"), title: file.name || "Documento do Drive", required: false, status: "Aprovado", expiry: "", owner: "", notes: `Importado automaticamente do Google Drive em ${importedAt}.`, driveUrl, files: [] };
     });
   } else {
     for (const file of newFiles) {
@@ -543,6 +548,59 @@ async function updateOrderInSheet(clientId, order) {
   }
   const write = await driveFetch(`https://sheets.googleapis.com/v4/spreadsheets/${base.id}/values:batchUpdate`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ valueInputOption: "RAW", data: updates }) });
   if (!write.ok) throw new Error(`Google Sheets respondeu ${write.status}.`); return { ok: true, row: rowIndex + 1, updated: updates.length, notes: savedNotes };
+}
+const sheetDate = value => {
+  if (typeof value === "number") return new Date(Date.UTC(1899, 11, 30) + value * 86400000).toISOString().slice(0, 10);
+  const match = String(value || "").match(/^(\d{1,2})\/(\d{1,2})\/(\d{4})$/);
+  return match ? `${match[3]}-${match[2].padStart(2,"0")}-${match[1].padStart(2,"0")}` : String(value || "").slice(0,10);
+};
+const parseCsv = text => {
+  const rows = []; let row = [], cell = "", quoted = false;
+  for (let index = 0; index < text.length; index += 1) {
+    const char = text[index], next = text[index + 1];
+    if (char === '"' && quoted && next === '"') { cell += '"'; index += 1; }
+    else if (char === '"') quoted = !quoted;
+    else if (char === "," && !quoted) { row.push(cell); cell = ""; }
+    else if ((char === "\n" || char === "\r") && !quoted) {
+      if (char === "\r" && next === "\n") index += 1;
+      row.push(cell); rows.push(row); row = []; cell = "";
+    } else cell += char;
+  }
+  if (cell || row.length) { row.push(cell); rows.push(row); }
+  return rows;
+};
+const scheduleNumber = value => {
+  if (typeof value === "number") return Number.isFinite(value) ? value : 0;
+  const text = String(value ?? "").trim().replace(/[^\d,.-]/g, "");
+  if (!text) return 0;
+  return Number(text.includes(",") ? text.replaceAll(".", "").replace(",", ".") : text) || 0;
+};
+const parseScheduleRows = values => {
+  const rows = []; let current = null;
+  values.forEach((cells, offset) => {
+    const item = String(cells[0] ?? "").trim(), name = String(cells[1] ?? "").trim();
+    if (item && /^\d+$/.test(item) && name) {
+      current = { item, sheetRow: offset + 3, name, description:String(cells[2]??""), owner:String(cells[3]??""), contact:String(cells[4]??""), material:String(cells[5]??""), start:sheetDate(cells[6]), end:sheetDate(cells[7]), plannedValue:scheduleNumber(cells[8]), unitValue:scheduleNumber(cells[9]), alternatives:[] };
+      rows.push(current);
+    } else if (current && String(cells[3] ?? "").trim() && (cells[8] !== undefined || cells[4] !== undefined)) {
+      current.alternatives.push({sheetRow:offset+3,supplier:String(cells[3]??""),contact:String(cells[4]??""),value:scheduleNumber(cells[8]),unitValue:scheduleNumber(cells[9])});
+    }
+  });
+  return rows;
+};
+async function readScheduleSheet(clientId) {
+  const base = scheduleBases[cleanName(clientId)]; if (!base) throw new Error("Cronograma deste cliente não configurado.");
+  const range = `'${base.sheet.replaceAll("'", "''")}'!B3:K100`;
+  try {
+    const response = await sheetsFetch(`spreadsheets/${base.id}/values/${encodeURIComponent(range)}?majorDimension=ROWS&valueRenderOption=UNFORMATTED_VALUE`);
+    const values = (await response.json()).values || [];
+    return { rows:parseScheduleRows(values), spreadsheetId:base.id, sheet:base.sheet, source:"google-api", writable:true, syncedAt:isoNow() };
+  } catch (authError) {
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${base.id}/export?format=csv&gid=0`);
+    if (!response.ok) throw authError;
+    const values = parseCsv(await response.text()).slice(2).map(row => row.slice(1, 11));
+    return { rows:parseScheduleRows(values), spreadsheetId:base.id, sheet:base.sheet, source:"public-csv", writable:false, syncedAt:isoNow() };
+  }
 }
 async function normalizeOrderStatusesInSheet(clientId) {
   const base = spreadsheetBases[cleanName(clientId)]; if (!base) throw new Error("Base deste cliente não configurada.");
@@ -1568,6 +1626,9 @@ export async function handleRequest(req, res) {
     }
     if (url.pathname === "/api/order-status-normalize" && req.method === "POST") {
       try { const input = await bodyJson(req); return json(res, 200, await normalizeOrderStatusesInSheet(input.clientId || "dr_clovis_cmfs")); } catch (error) { return json(res, 502, { error: error.message }); }
+    }
+    if (url.pathname === "/api/schedule" && req.method === "GET") {
+      try { return json(res,200,await readScheduleSheet(url.searchParams.get("clientId"))); } catch(error) { return json(res,502,{error:error.message}); }
     }
     if (url.pathname === "/api/weather/report" && req.method === "GET") {
       try { return json(res, 200, await weatherReport({ address: url.searchParams.get("address"), start: url.searchParams.get("start"), end: url.searchParams.get("end") })); } catch (error) { return json(res, 502, { error: error.message }); }

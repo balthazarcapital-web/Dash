@@ -8,7 +8,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css?v=1.1.28">
+  <link rel="stylesheet" href="styles.css?v=1.3.2">
 </head>
 <body>
   <div class="app-shell">
@@ -156,13 +156,11 @@
 
         <nav class="work-tabs" aria-label="Áreas da gestão da obra">
           <button class="active" data-work-tab="overview">Visão da obra</button>
-          <button data-work-tab="schedule">Cronograma</button>
+          <button data-work-tab="schedule">Cronograma <b id="work-schedule-tab-count">15</b></button>
           <button data-work-tab="budget">Orçamento <b id="work-budget-tab-count">0%</b></button>
           <button data-work-tab="documents">Documentos <b id="work-doc-tab-count">0</b></button>
           <button data-work-tab="journal">Diário de obra <b id="work-journal-count">0</b></button>
         </nav>
-
-        <section data-work-tab-panel="schedule" hidden><div id="work-schedule"></div></section>
 
         <div data-work-tab-panel="overview">
         <section class="work-kpis" aria-label="Resumo executivo da obra">
@@ -211,6 +209,27 @@
             <div class="work-phases" id="work-phases"></div>
           </article>
         </div>
+        </div>
+
+        <div data-work-tab-panel="schedule" hidden>
+          <section class="schedule-hero">
+            <div><p class="eyebrow">PLANEJAMENTO FÍSICO-FINANCEIRO</p><h2>Cronograma da obra</h2><p>Visão executiva baseada na planilha oficial do Dr. Clóvis.</p></div>
+            <div class="schedule-hero-actions"><button class="button button-primary" id="schedule-sync">Atualizar cronograma</button><a class="button button-secondary" id="schedule-source-link" href="#" target="_blank" rel="noopener">Abrir planilha fonte ↗</a></div>
+          </section>
+          <section class="schedule-kpis" aria-label="Resumo do cronograma">
+            <article><span>ETAPAS PLANEJADAS</span><strong id="schedule-total">0</strong><small id="schedule-range">—</small></article>
+            <article><span>EM ANDAMENTO</span><strong id="schedule-active">0</strong><small>Considerando a data de hoje</small></article>
+            <article><span>PRÓXIMO MARCO</span><strong id="schedule-next">—</strong><small id="schedule-next-date">—</small></article>
+            <article class="schedule-kpi-dark"><span>HORIZONTE</span><strong id="schedule-horizon">—</strong><small>Planejamento atual</small></article>
+          </section>
+          <section class="panel schedule-panel">
+            <div class="panel-header schedule-panel-heading"><div><p class="eyebrow">MAPA DE EXECUÇÃO</p><h3>Linha do tempo</h3></div><span class="panel-total" id="schedule-sync-label">Fonte: Google Sheets</span></div>
+            <div class="schedule-months" id="schedule-months"></div>
+            <div class="schedule-timeline" id="schedule-timeline"></div>
+          </section>
+          <section class="panel schedule-upcoming-panel"><div class="panel-header"><div><p class="eyebrow">ACOMPANHAMENTO</p><h3>Próximos marcos</h3></div><span class="panel-total">Clique para ver detalhes</span></div><div class="schedule-upcoming" id="schedule-upcoming"></div></section>
+          <section class="schedule-financial-panel"><div class="schedule-financial-total"><div><p class="eyebrow">PREVISÃO FINANCEIRA</p><h3>Total previsto no cronograma</h3><small>Conforme a planilha, incluindo as cotações registradas.</small></div><strong id="schedule-grand-total">R$ 0,00</strong></div><div class="schedule-financial-months" id="schedule-financial"></div></section>
+          <section class="panel schedule-detail-panel"><div class="panel-header"><div><p class="eyebrow">FRENTES DE TRABALHO</p><h3>Detalhamento do planejamento</h3></div><span class="panel-total">Escopo, fornecedores e custos previstos</span></div><div class="schedule-detail" id="schedule-detail"></div></section>
         </div>
 
         <div data-work-tab-panel="budget" hidden>
@@ -316,12 +335,10 @@
     <div id="drawer-content"></div>
   </aside>
   <aside class="occurrence-drawer" id="occurrence-drawer" aria-label="Ocorrência do pedido" aria-hidden="true"><div class="occurrence-drawer-head"><div><p class="eyebrow">REGISTRO DO PEDIDO</p><h2 id="occurrence-title">Ocorrência</h2></div><button class="icon-button" id="occurrence-close" aria-label="Fechar ocorrência">×</button></div><div id="occurrence-content"></div></aside>
-  <div class="schedule-drawer-backdrop" id="schedule-drawer-backdrop" hidden></div>
-  <aside class="schedule-drawer" id="schedule-drawer" aria-label="Detalhes da etapa do cronograma" aria-hidden="true"><div class="schedule-drawer-head"><div><p class="eyebrow">ETAPA DO CRONOGRAMA</p><h2 id="schedule-drawer-title">Etapa</h2></div><button class="icon-button" id="schedule-drawer-close" aria-label="Fechar etapa">×</button></div><div id="schedule-drawer-content"></div></aside>
   <div class="toast" id="toast" role="status" aria-live="polite"></div>
 
-  <script src="web-demo.js?v=1.1.7"></script>
-  <script src="data.js?v=1.1.8"></script>
+  <script src="web-demo.js?v=1.3.1"></script>
+  <script src="data.js?v=1.1.12"></script>
   <link rel="stylesheet" href="quotation-tool.css?v=2.0.0">
   <script src="quotation-tool.js?v=2.0.0"></script>
 <link rel="stylesheet" href="work-report.css?v=4">
@@ -331,9 +348,7 @@
 <script src="rental-executive.js?v=3"></script>
 <script src="order-executive.js?v=3"></script>
 <script src="area-report.js?v=7"></script>
-<link rel="stylesheet" href="concrete-quotes.css?v=3">
-<script src="concrete-quotes.js?v=3"></script>
-<script src="works.js?v=1.2.7"></script>
-<script src="app.js?v=1.2.30"></script>
+<script src="works.js?v=1.3.1"></script>
+<script src="app.js?v=1.3.2"></script>
 </body>
 </html>
