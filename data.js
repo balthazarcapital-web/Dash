@@ -63,6 +63,8 @@ window.DASHBOARD_CLIENTS = {
     spreadsheetUrl: "https://docs.google.com/spreadsheets/d/1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU/edit",
     scheduleSpreadsheetId: "1_zlKGOP_I5EKbLAznvuEys4nc_UTqwtn-wBsYo13fzs",
     scheduleUrl: "https://docs.google.com/spreadsheets/d/1_zlKGOP_I5EKbLAznvuEys4nc_UTqwtn-wBsYo13fzs/edit",
+    // Fonte extra de andamento (planilha do Bravo), somente leitura via /api/schedule-progress.
+    progressUrl: "https://docs.google.com/spreadsheets/d/16DvSWvejU06MmOYi2qv6TTHYRp2fJ91aq4bHv38hlps/edit#gid=673104521",
     schedule: [
       {item:"1",name:"Visita FDS",start:"2026-09-08",end:"2026-09-08",owner:"—",description:"Visita inicial de acompanhamento da obra.",material:"Visita técnica",valueLabel:"Sem valor informado",plannedValue:0},
       {item:"2",name:"Retirada de material pré-demolição",start:"2026-09-09",end:"2026-09-13",owner:"Valdecyr",description:"Preparo do barraco de obra, banheiros, tapumes, lava-rodas e demolição da casa de madeira.",material:"Mobilização e preparo da obra",valueLabel:"R$ 10.702,50",plannedValue:10702.50},

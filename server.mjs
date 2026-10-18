@@ -11,6 +11,7 @@ import ExcelJS from "exceljs";
 import pdfParse from "pdf-parse";
 import XLSX from "xlsx";
 import { handleQuotationTool } from "./lib/quotation-api.mjs";
+import { parseProgressCsv } from "./lib/schedule-progress.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const isVercel = Boolean(process.env.VERCEL);
@@ -41,8 +42,15 @@ const spreadsheetBases = {
   dr_clovis_cmfs: { id: "1Myr3_i6bWDCI9dq--3x3ndH3QWqFfmdlKvE-YhRZ0lU", gid: "1856239408" }
 };
 const scheduleBases = {
-  dr_clovis_cmfs: { id: "1_zlKGOP_I5EKbLAznvuEys4nc_UTqwtn-wBsYo13fzs", sheet: "Página1" }
+  dr_clovis_cmfs: { id: "1_zlKGOP_I5EKbLAznvuEys4nc_UTqwtn-wBsYo13fzs", sheet: "Página1", gid: "0" }
 };
+// Fonte EXTRA de andamento do cronograma (planilha do Bravo). Somente leitura via CSV público;
+// não substitui a planilha de cronograma financeiro/fornecedores acima.
+const progressBases = {
+  dr_clovis_cmfs: { id: "16DvSWvejU06MmOYi2qv6TTHYRp2fJ91aq4bHv38hlps", gid: "673104521", sheet: "Cronograma da Obra - Dr. Clóvis" }
+};
+const progressCache = new Map();
+const PROGRESS_CACHE_MS = 60 * 1000;
 const drivePilot = {
   clientId: "deterlimp", number: "5", category: "Hidráulica", folderId: "1xon5pJF9nxvWZHqKY3IpWOcVcrjRwz1a",
   files: [
@@ -596,10 +604,40 @@ async function readScheduleSheet(clientId) {
     const values = (await response.json()).values || [];
     return { rows:parseScheduleRows(values), spreadsheetId:base.id, sheet:base.sheet, source:"google-api", writable:true, syncedAt:isoNow() };
   } catch (authError) {
-    const response = await fetch(`https://docs.google.com/spreadsheets/d/${base.id}/export?format=csv&gid=0`);
+    const response = await fetch(`https://docs.google.com/spreadsheets/d/${base.id}/export?format=csv&gid=${encodeURIComponent(base.gid ?? "0")}`);
     if (!response.ok) throw authError;
     const values = parseCsv(await response.text()).slice(2).map(row => row.slice(1, 11));
     return { rows:parseScheduleRows(values), spreadsheetId:base.id, sheet:base.sheet, source:"public-csv", writable:false, syncedAt:isoNow() };
+  }
+}
+async function readScheduleProgress(clientId) {
+  const id = cleanName(clientId), base = progressBases[id];
+  const empty = extra => ({ clientId: id, rows: [], warnings: [], hasProgress: false, latestInfoDate: "", syncedAt: isoNow(), ...extra });
+  if (!base) return empty({ configured: false });
+  const cached = progressCache.get(id);
+  if (cached && cached.expiresAt > Date.now()) return { ...cached.payload, cached: true };
+  const meta = { configured: true, spreadsheetId: base.id, gid: base.gid, sheet: base.sheet, url: `https://docs.google.com/spreadsheets/d/${base.id}/edit#gid=${base.gid}` };
+  try {
+    let text, source;
+    // PROGRESS_FIXTURE: apenas para teste local (nunca definido no Vercel) — simula a planilha preenchida.
+    if (process.env.PROGRESS_FIXTURE && !isVercel) { text = await fs.readFile(path.resolve(process.env.PROGRESS_FIXTURE), "utf8"); source = "fixture-local"; }
+    else {
+      const controller = new AbortController(), timer = setTimeout(() => controller.abort(), 10000);
+      try {
+        const response = await fetch(`https://docs.google.com/spreadsheets/d/${base.id}/export?format=csv&gid=${encodeURIComponent(base.gid)}`, { signal: controller.signal, redirect: "follow" });
+        if (!response.ok) throw new Error(`Google Sheets respondeu ${response.status}.`);
+        text = await response.text(); source = "public-csv";
+        if (/^\s*<(!doctype|html)/i.test(text)) throw new Error("A planilha de andamento não está pública.");
+      } finally { clearTimeout(timer); }
+    }
+    const budgetItems = id === "dr_clovis_cmfs" ? ((await drClovisBudget().catch(() => null))?.items || []) : [];
+    const parsed = parseProgressCsv(text, { budgetItems });
+    const payload = { ...empty(meta), ...parsed, source, syncedAt: isoNow() };
+    progressCache.set(id, { payload, expiresAt: Date.now() + PROGRESS_CACHE_MS });
+    return payload;
+  } catch (error) {
+    // Falha na fonte extra nunca quebra a página: lista vazia + aviso.
+    return empty({ ...meta, warnings: [`Andamento indisponível: ${error.message}`], error: true });
   }
 }
 async function normalizeOrderStatusesInSheet(clientId) {
@@ -1626,6 +1664,9 @@ export async function handleRequest(req, res) {
     }
     if (url.pathname === "/api/order-status-normalize" && req.method === "POST") {
       try { const input = await bodyJson(req); return json(res, 200, await normalizeOrderStatusesInSheet(input.clientId || "dr_clovis_cmfs")); } catch (error) { return json(res, 502, { error: error.message }); }
+    }
+    if (url.pathname === "/api/schedule-progress" && req.method === "GET") {
+      try { return json(res,200,await readScheduleProgress(url.searchParams.get("clientId"))); } catch(error) { return json(res,200,{rows:[],warnings:[`Andamento indisponível: ${error.message}`],hasProgress:false,error:true}); }
     }
     if (url.pathname === "/api/schedule" && req.method === "GET") {
       try { return json(res,200,await readScheduleSheet(url.searchParams.get("clientId"))); } catch(error) { return json(res,502,{error:error.message}); }
