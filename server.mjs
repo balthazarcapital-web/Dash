@@ -8,7 +8,7 @@ import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import os from "node:os";
 import ExcelJS from "exceljs";
-import { montarDadosLocacoes, PLANILHA_LOCACOES_ID } from "./lib/locacoes-mapa.mjs";
+import { montarDadosLocacoes, lerCsvPublico, PLANILHA_LOCACOES_ID } from "./lib/locacoes-mapa.mjs";
 import pdfParse from "pdf-parse";
 import XLSX from "xlsx";
 import { handleQuotationTool } from "./lib/quotation-api.mjs";
@@ -593,8 +593,15 @@ let locacoesCache = { at: 0, data: null };
 async function readLocacoesMapa() {
   if (locacoesCache.data && Date.now() - locacoesCache.at < 60_000) return locacoesCache.data;
   const id = process.env.LOCACOES_SHEET_ID || PLANILHA_LOCACOES_ID;
-  const read = await sheetsFetch(`spreadsheets/${id}/values/${encodeURIComponent("A:Z")}?majorDimension=ROWS`);
-  const data = montarDadosLocacoes((await read.json()).values || []);
+  let data;
+  try {
+    const read = await sheetsFetch(`spreadsheets/${id}/values/${encodeURIComponent("A:Z")}?majorDimension=ROWS`);
+    data = montarDadosLocacoes((await read.json()).values || []);
+  } catch (oauthError) {
+    // Sem token ou token recusado: tenta o CSV público (planilha compartilhada como Leitor por link).
+    try { data = { ...montarDadosLocacoes(await lerCsvPublico()), fonte: "csv-publico" }; }
+    catch (csvError) { throw new Error(`Google: ${oauthError.message} | CSV público: ${csvError.message}`); }
+  }
   locacoesCache = { at: Date.now(), data };
   return data;
 }
