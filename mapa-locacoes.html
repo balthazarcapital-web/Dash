@@ -135,7 +135,7 @@
   <div class="board" id="board"></div>
 </section>
 
-<!-- Fonte: planilha "Controle de Locações - Absolutta" (https://docs.google.com/spreadsheets/d/1VNcv3lmd57kTopxYmQb1aE_fBPL4s5D-wSMaduNagAs/edit). Snapshot fixo; para atualizar, rode atualizar_dados.py (protótipo) e copie o JSON. -->
+<!-- Fonte: planilha "Controle de Locações - Absolutta" (https://docs.google.com/spreadsheets/d/1VNcv3lmd57kTopxYmQb1aE_fBPL4s5D-wSMaduNagAs/edit). Ao abrir, a página lê /api/locacoes-mapa (servidor); o JSON abaixo é só reserva se a leitura falhar. -->
 <!-- Dados gerados por atualizar_dados.py a partir da planilha "Controle de Locações - Absolutta" -->
 <script id="dados" type="application/json">
 {
@@ -591,7 +591,22 @@
 </script>
 
 <script>
-const DADOS = JSON.parse(document.getElementById('dados').textContent);
+let DADOS = JSON.parse(document.getElementById('dados').textContent);
+let AVISO_FONTE = '';
+// Lê a planilha ao vivo pelo servidor; se falhar, usa o snapshot embutido.
+async function carregarDados() {
+  try {
+    const r = await fetch('/api/locacoes-mapa', { cache: 'no-store' });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok || !Array.isArray(d.obras)) throw new Error(d.error || `HTTP ${r.status}`);
+    DADOS = d;
+  } catch (e) {
+    AVISO_FONTE = `Sem acesso à planilha agora — dados de ${DADOS.gerado_em || 'snapshot'}`;
+    console.warn('Mapa de locações: usando snapshot embutido.', e);
+  }
+}
+(async () => { await carregarDados(); iniciarMapa(); })();
+function iniciarMapa() {
 const HOJE = new Date(); HOJE.setHours(0, 0, 0, 0);
 const COLUNAS = ['Solicitado', 'Na obra', 'Retirada solicitada', 'Aguardando NF/boleto', 'Concluído'];
 const COR = { verde: '#16a34a', laranja: '#ea7c0c', vermelho: '#dc2626' };
@@ -744,13 +759,14 @@ document.getElementById('btnTodas').onclick = () => {
 document.getElementById('fechar').onclick = fecharPainel;
 document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharPainel(); });
 
-document.getElementById('atual').textContent = DADOS.gerado_em ? `Planilha lida em ${DADOS.gerado_em}` : '';
+document.getElementById('atual').textContent = AVISO_FONTE || (DADOS.gerado_em ? `Planilha lida em ${DADOS.gerado_em}` : '');
 if ((DADOS.nao_mapeadas || []).length) {
   document.getElementById('semObra').innerHTML = `<div class="aviso"><b>Sem obra identificada:</b><br>` +
     DADOS.nao_mapeadas.map(r => `Linha ${r.linha}: ${esc(itemCurto(r.item))}`).join('<br>') + `</div>`;
 }
 window.abrirObraId = id => abrirObra(obras.find(o => o.id === id));
 window.abrirTodas = () => document.getElementById('btnTodas').click();
+}
 </script>
 </body>
 </html>

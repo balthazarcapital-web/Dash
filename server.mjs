@@ -8,6 +8,7 @@ import { spawn } from "node:child_process";
 import crypto from "node:crypto";
 import os from "node:os";
 import ExcelJS from "exceljs";
+import { montarDadosLocacoes, PLANILHA_LOCACOES_ID } from "./lib/locacoes-mapa.mjs";
 import pdfParse from "pdf-parse";
 import XLSX from "xlsx";
 import { handleQuotationTool } from "./lib/quotation-api.mjs";
@@ -588,6 +589,16 @@ const parseScheduleRows = values => {
   });
   return rows;
 };
+let locacoesCache = { at: 0, data: null };
+async function readLocacoesMapa() {
+  if (locacoesCache.data && Date.now() - locacoesCache.at < 60_000) return locacoesCache.data;
+  const id = process.env.LOCACOES_SHEET_ID || PLANILHA_LOCACOES_ID;
+  const read = await sheetsFetch(`spreadsheets/${id}/values/${encodeURIComponent("A:Z")}?majorDimension=ROWS`);
+  const data = montarDadosLocacoes((await read.json()).values || []);
+  locacoesCache = { at: Date.now(), data };
+  return data;
+}
+
 async function readScheduleSheet(clientId) {
   const base = scheduleBases[cleanName(clientId)]; if (!base) throw new Error("Cronograma deste cliente não configurado.");
   const range = `'${base.sheet.replaceAll("'", "''")}'!B3:K100`;
@@ -1626,6 +1637,9 @@ export async function handleRequest(req, res) {
     }
     if (url.pathname === "/api/order-status-normalize" && req.method === "POST") {
       try { const input = await bodyJson(req); return json(res, 200, await normalizeOrderStatusesInSheet(input.clientId || "dr_clovis_cmfs")); } catch (error) { return json(res, 502, { error: error.message }); }
+    }
+    if (url.pathname === "/api/locacoes-mapa" && req.method === "GET") {
+      try { res.setHeader("Cache-Control", "private, no-store"); return json(res, 200, await readLocacoesMapa()); } catch (error) { return json(res, 502, { error: error.message }); }
     }
     if (url.pathname === "/api/schedule" && req.method === "GET") {
       try { return json(res,200,await readScheduleSheet(url.searchParams.get("clientId"))); } catch(error) { return json(res,502,{error:error.message}); }

@@ -10,3 +10,4 @@ dash-netlify.zip
 .vercel
 .env*
 !.env.example
+tests/local/
