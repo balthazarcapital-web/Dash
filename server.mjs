@@ -11,6 +11,7 @@ import ExcelJS from "exceljs";
 import pdfParse from "pdf-parse";
 import XLSX from "xlsx";
 import { handleQuotationTool } from "./lib/quotation-api.mjs";
+import { createCotacaoPedidos } from "./lib/cotacao-pedidos.mjs";
 
 const root = path.dirname(fileURLToPath(import.meta.url));
 const isVercel = Boolean(process.env.VERCEL);
@@ -33,6 +34,7 @@ const driveRoots = {
 // Estado compartilhado do dashboard fica em uma pasta normal do Drive. Isso
 // evita depender do escopo appDataFolder, mantendo leitura e gravação com o
 // mesmo OAuth já usado para localizar os pedidos.
+const handleCotacaoPedidos = createCotacaoPedidos({ clients: driveRoots, localDir: runtimeDir, isVercel });
 const driveStateFolderId = process.env.GOOGLE_DRIVE_STATE_FOLDER_ID || driveRoots.deterlimp;
 const spreadsheetBases = {
   deterlimp: { id: "13Kmg41VDV8KUijPucj2TxCFdElFD6Vfb1WY4WwB7msU", gid: "1856239408" },
@@ -1615,6 +1617,7 @@ export async function handleRequest(req, res) {
     const url = new URL(req.url, `http://${req.headers.host || "localhost"}`);
     const parts = url.pathname.split("/").filter(Boolean);
     if (await handleQuotationTool(req, res, url, { driveFetch, driveConfigured, driveRoots })) return;
+    if (await handleCotacaoPedidos(req, res, url)) return;
     if (url.pathname === "/api/health") return json(res, 200, { ok: true, runtime: isVercel ? "vercel" : "local", driveConnected: driveConfigured(), supabaseConnected: Boolean(process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY), formats: ["pdf", "xlsx", "xls", "csv", "txt", "png", "jpg", "jpeg"] });
     if (url.pathname === "/api/sync/supabase" && req.method === "POST") {
       const input = await bodyJson(req), clientId = String(input.clientId || "deterlimp");

@@ -50,3 +50,14 @@ Para sincronização direta, publique a planilha para leitura ou substitua a URL
 ## Privacidade e armazenamento
 
 Os documentos são processados no computador. Nenhum arquivo é enviado para serviços externos automaticamente. Rascunhos e anexos ficam em `runtime_data/`, pasta ignorada pelo controle de versão.
+
+## Mapa de cotação pelo Bravo (aba Cotações)
+
+O painel "Gerar mapa de cotação" envia orçamentos (PDF/imagem até 20 MB cada, ou texto) ao Bravo:
+
+1. `POST /api/cotacoes/arquivos` devolve uma URL assinada; o navegador envia o arquivo direto ao Storage (sem passar pelo limite de 4,5 MB da Vercel).
+2. `POST /api/cotacoes/pedidos` grava o pedido (`cotacao_pedidos`, status `enviado`) e chama `BRAVO_WEBHOOK_URL` com `{pedido_id, cliente_id, obra, titulo, texto, arquivos:[{nome,tipo,url}], callback_url, callback_token}`. As URLs dos arquivos valem 7 dias. Se o webhook falhar, o pedido fica `erro`.
+3. O Bravo responde em `POST /api/cotacoes/pedidos/:id/resultado` com `Authorization: Bearer <callback_token>` e `{status: "gerando"|"pronto"|"erro", planilha_url (https, obrigatório em pronto), mensagem}`. Só o hash do token é guardado.
+4. `GET /api/cotacoes/pedidos?clientId=` lista os pedidos (sem segredos); a tela atualiza a cada 10 s enquanto houver pedido `enviado`/`gerando`.
+
+Variáveis: `SUPABASE_URL`, `SUPABASE_SERVICE_ROLE_KEY`, `BRAVO_WEBHOOK_URL`, `BRAVO_WEBHOOK_TOKEN`, opcionais `BRAVO_WEBHOOK_HEADER`, `COTACOES_BUCKET`, `DASH_PUBLIC_URL`. Banco: `supabase/migrations/002_cotacao_pedidos.sql`. Sem Supabase, em ambiente local os dados ficam em `runtime_data/`. Em preview da Vercel, se existir `VERCEL_AUTOMATION_BYPASS_SECRET`, ele é anexado ao `callback_url` para o Bravo passar pela proteção do preview.
