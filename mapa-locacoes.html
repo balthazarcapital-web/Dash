@@ -680,15 +680,17 @@ function cardHtml(it, mostrarCliente) {
 }
 
 let concluidoAberto = false, vistaAtual = null;
+// onclick inline roda no escopo global; expõe o alternador (o resto vive dentro de iniciarMapa).
+window.alternarConcluido = aberto => { concluidoAberto = aberto; renderBoard(vistaAtual.itens, vistaAtual.cli); };
 function renderBoard(itens, mostrarCliente) {
   const board = document.getElementById('board');
   board.innerHTML = COLUNAS.map(c => {
     const lista = itens.filter(it => coluna(it) === c);
     if (c === 'Concluído' && !concluidoAberto) {
       return `<div class="col recolhida"><h3>${c}<span class="n">${lista.length}</span></h3>
-        <button class="expandir" onclick="concluidoAberto=true;renderBoard(vistaAtual.itens, vistaAtual.cli)">${lista.length ? `Mostrar ${lista.length}` : 'Nenhum'}</button></div>`;
+        <button class="expandir" onclick="alternarConcluido(true)">${lista.length ? `Mostrar ${lista.length}` : 'Nenhum'}</button></div>`;
     }
-    const extra = c === 'Concluído' ? `<button class="expandir" style="margin-bottom:8px" onclick="concluidoAberto=false;renderBoard(vistaAtual.itens, vistaAtual.cli)">Recolher</button>` : '';
+    const extra = c === 'Concluído' ? `<button class="expandir" style="margin-bottom:8px" onclick="alternarConcluido(false)">Recolher</button>` : '';
     return `<div class="col${lista.length ? '' : ' col-vazia'}"><h3>${c}<span class="n">${lista.length}</span></h3>${extra}
       ${lista.length ? lista.map(it => cardHtml(it, mostrarCliente)).join('') : '<div class="vazia">—</div>'}</div>`;
   }).join('');
