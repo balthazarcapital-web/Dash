@@ -9,6 +9,7 @@
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=Manrope:wght@600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="styles.css?v=1.3.2">
+  <link rel="stylesheet" href="mapa-locacoes.css?v=1">
 </head>
 <body>
   <div class="app-shell">
@@ -26,6 +27,7 @@
         <a class="nav-link" href="#work" data-section="work"><span data-icon="building"></span>Obras</a>
         <a class="nav-link" href="#orders" data-section="orders"><span data-icon="clipboard"></span>Pedidos <b id="nav-order-count">0</b></a>
         <a class="nav-link" href="#" data-section="rentals"><span data-icon="calendar"></span>Locações <b id="nav-rental-count">0</b></a>
+        <a class="nav-link" href="#mapa" data-section="mapa"><span data-icon="map"></span>Mapa de locações</a>
         <a class="nav-link" href="#climate" data-section="climate"><span data-icon="cloud"></span>Clima</a>
         <a class="nav-link" href="#quotes" data-section="quotes"><span data-icon="layers"></span>Cotações <b id="nav-quote-count">0</b></a>
         <a class="nav-link" href="#fiscal" data-section="fiscal"><span data-icon="receipt"></span>Notas fiscais <b id="nav-nf-count">0</b></a>
@@ -132,6 +134,9 @@
         </section>
       </div>
 
+      <section class="mapa-locacoes-view" id="mapa-locacoes" hidden>
+        <iframe id="mapa-locacoes-frame" data-src="mapa-locacoes.html?v=1" title="Mapa de locações por obra" loading="lazy"></iframe>
+      </section>
       <section class="content climate-view" id="climate" hidden>
         <section class="panel climate-page-panel">
           <div class="panel-header"><div><p class="eyebrow">MONITORAMENTO DA OBRA</p><h2>Clima no expediente</h2><p class="wc-legend">Leitura diária das 8h às 17h, no horário de Curitiba.</p></div><label>Mês <select id="climate-page-month" aria-label="Mês do calendário climático"></select></label></div>

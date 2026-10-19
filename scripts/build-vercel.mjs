@@ -3,7 +3,7 @@ import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
 const output = path.join(root, "public");
-const files = ["index.html", "locacoes.html", "locacoes.js", "styles.css", "data.js", "quotation-tool.js", "quotation-tool.css", "works.js", "app.js", "work-report.js", "work-report.css", "web-demo.js", "works-data.json", "budget-dr-clovis.json", "climate-data.js", "climate-data.json"];
+const files = ["index.html", "locacoes.html", "locacoes.js", "styles.css", "data.js", "quotation-tool.js", "quotation-tool.css", "works.js", "app.js", "work-report.js", "work-report.css", "web-demo.js", "works-data.json", "budget-dr-clovis.json", "climate-data.js", "climate-data.json", "mapa-locacoes.html", "mapa-locacoes.css"];
 const directories = ["comparativo-cli-inova", "erp-compras"];
 files.push('area-report.js', 'area-report.css', 'rental-executive.js', 'order-executive.js');
 

@@ -5,6 +5,7 @@
   "builds": [
     { "src": "api/index.mjs", "use": "@vercel/node", "config": { "maxDuration": 300, "includeFiles": ["scripts/**", "budget-dr-clovis.json", "works-data.json"] } },
     { "src": "index.html", "use": "@vercel/static" },
+    { "src": "mapa-locacoes.html", "use": "@vercel/static" },
     { "src": "*.js", "use": "@vercel/static" },
     { "src": "*.css", "use": "@vercel/static" },
     { "src": "*.json", "use": "@vercel/static" },

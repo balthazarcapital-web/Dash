@@ -1,0 +1,756 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Mapa de locações por obra – Absolutta</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<style>
+  :root {
+    --bg: #f3f4f6; --card: #ffffff; --line: #e5e7eb; --txt: #111827; --muted: #6b7280; --soft: #9ca3af;
+    --verde: #16a34a; --laranja: #ea7c0c; --vermelho: #dc2626; --azul: #2563eb;
+    --verde-bg: #dcfce7; --laranja-bg: #ffedd5; --vermelho-bg: #fee2e2; --cinza-bg: #f3f4f6;
+    --sombra: 0 1px 2px rgba(16,24,40,.06), 0 1px 3px rgba(16,24,40,.08);
+    --raio: 12px;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; background: var(--bg); color: var(--txt);
+    font-family: Inter, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif; font-size: 14px; -webkit-font-smoothing: antialiased; }
+  button { font: inherit; cursor: pointer; }
+
+  /* topo */
+  header { height: 60px; display: flex; align-items: center; gap: 12px; padding: 0 20px; background: var(--card); border-bottom: 1px solid var(--line); }
+  header h1 { font-size: 16px; font-weight: 700; margin: 0; letter-spacing: -.01em; }
+  header .teste { font-size: 11px; font-weight: 600; color: #92400e; background: #fef3c7; padding: 3px 8px; border-radius: 999px; }
+  header .esp { flex: 1; }
+  header .atual { font-size: 12px; color: var(--muted); }
+  .btn { border: 0; background: var(--txt); color: #fff; padding: 9px 14px; border-radius: 10px; font-weight: 600; font-size: 13px; }
+  .btn:hover { background: #374151; }
+
+  #app { display: flex; height: calc(100% - 60px); }
+  #lateral { width: 280px; flex: none; padding: 18px 16px; overflow-y: auto; border-right: 1px solid var(--line); background: var(--bg); }
+  #mapa { flex: 1; }
+  .rotulo { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .06em; margin: 0 0 10px; }
+  .cli { display: flex; gap: 10px; align-items: flex-start; width: 100%; text-align: left; background: var(--card); border: 1px solid var(--line);
+    border-radius: var(--raio); padding: 12px; margin-bottom: 8px; box-shadow: var(--sombra); transition: border-color .15s; }
+  .cli:hover, .cli.ativo { border-color: var(--azul); }
+  .cli .nome { font-weight: 600; font-size: 14px; line-height: 1.3; }
+  .cli .info { font-size: 12px; color: var(--muted); margin-top: 3px; }
+  .ponto { width: 10px; height: 10px; border-radius: 50%; flex: none; margin-top: 5px; }
+  .p-verde { background: var(--verde); } .p-laranja { background: var(--laranja); } .p-vermelho { background: var(--vermelho); }
+  .legenda { margin-top: 22px; }
+  .legenda div { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: #374151; margin-bottom: 7px; line-height: 1.35; }
+  .legenda .ponto { margin-top: 3px; }
+  .aviso { margin-top: 16px; font-size: 12px; color: #7c2d12; background: var(--laranja-bg); border-radius: 10px; padding: 10px; }
+
+  /* painel */
+  #painel { position: fixed; top: 60px; right: 0; bottom: 0; width: min(920px, 66vw); background: var(--bg); box-shadow: -8px 0 24px rgba(16,24,40,.12);
+    transform: translateX(105%); transition: transform .25s ease; z-index: 1000; display: flex; flex-direction: column; }
+  #painel.aberto { transform: none; }
+  .ph { background: var(--card); padding: 18px 22px; border-bottom: 1px solid var(--line); display: flex; gap: 12px; align-items: flex-start; }
+  .ph .tit { flex: 1; min-width: 0; }
+  .ph h2 { margin: 0; font-size: 18px; font-weight: 700; letter-spacing: -.01em; }
+  .ph .end { color: var(--muted); font-size: 13px; margin-top: 3px; }
+  .ph .badges { display: flex; gap: 6px; flex-wrap: wrap; margin-top: 10px; }
+  .fechar { border: 0; background: var(--cinza-bg); width: 34px; height: 34px; border-radius: 10px; font-size: 18px; color: var(--muted); flex: none; }
+  .fechar:hover { background: var(--line); }
+  .board { flex: 1; overflow: auto; padding: 18px 22px; display: flex; gap: 12px; align-items: flex-start; }
+  .col { flex: 1 1 0; min-width: 168px; background: #e9ebef; border-radius: var(--raio); padding: 10px; }
+  .col.col-vazia { flex: 0 0 118px; min-width: 0; }
+  .col.recolhida { flex: 0 0 auto; min-width: 0; width: 118px; }
+  .col h3 { margin: 2px 4px 10px; font-size: 12px; font-weight: 600; color: #374151; display: flex; justify-content: space-between; align-items: center; gap: 6px; }
+  .col h3 .n { background: var(--card); color: var(--muted); font-weight: 600; border-radius: 999px; padding: 1px 8px; font-size: 11px; }
+  .col .vazia { font-size: 12px; color: var(--soft); text-align: center; padding: 14px 0; }
+  .expandir { width: 100%; border: 1px dashed #c7cbd3; background: transparent; border-radius: 10px; padding: 10px; font-size: 12px; color: var(--muted); }
+  .expandir:hover { background: var(--card); }
+
+  .card { background: var(--card); border-radius: 10px; box-shadow: var(--sombra); padding: 10px 12px; margin-bottom: 8px; border-left: 4px solid var(--laranja); }
+  .card.c-verde { border-left-color: var(--verde); } .card.c-vermelho { border-left-color: var(--vermelho); }
+  .card .tag-cli { display: inline-block; font-size: 10px; font-weight: 600; color: var(--azul); background: #dbeafe; border-radius: 6px; padding: 2px 6px; margin-bottom: 6px; }
+  .card .item { font-weight: 600; font-size: 13px; line-height: 1.35; }
+  .card .loc { font-size: 12px; color: var(--muted); margin-top: 2px; }
+  .card .datas { display: grid; grid-template-columns: repeat(3, 1fr); gap: 6px 4px; margin-top: 9px; padding-top: 8px; border-top: 1px solid #f0f1f3; }
+  .card .datas div { font-size: 11px; color: #111827; font-weight: 500; line-height: 1.25; }
+  .card .datas small { display: block; font-size: 10px; color: var(--soft); font-weight: 500; }
+  .chips { display: flex; flex-wrap: wrap; gap: 4px; margin-top: 8px; }
+  .chip { font-size: 11px; font-weight: 500; padding: 2px 8px; border-radius: 999px; background: var(--cinza-bg); color: #374151; white-space: nowrap; }
+  .chip.vermelho { background: var(--vermelho-bg); color: #991b1b; font-weight: 600; }
+  .chip.laranja { background: var(--laranja-bg); color: #9a3412; }
+  .chip.verde { background: var(--verde-bg); color: #166534; }
+  .det { margin-top: 6px; }
+  .det summary { font-size: 11px; color: var(--azul); cursor: pointer; list-style: none; }
+  .det summary::-webkit-details-marker { display: none; }
+  .det p { font-size: 11px; color: #4b5563; margin: 6px 0 0; line-height: 1.45; }
+
+  .marca { width: 22px; height: 22px; border-radius: 50%; border: 3px solid #fff; box-shadow: 0 2px 6px rgba(0,0,0,.35); }
+  .leaflet-tooltip { font-family: inherit; font-weight: 600; border-radius: 8px; border: 0; box-shadow: var(--sombra); }
+
+  @media (max-width: 760px) {
+    header { padding: 0 12px; } header .atual { display: none; } header h1 { font-size: 14px; }
+    #app { flex-direction: column; }
+    #lateral { width: 100%; height: auto; max-height: 38%; border-right: 0; border-bottom: 1px solid var(--line); padding: 12px; }
+    .legenda { display: none; }
+    #painel { top: auto; left: 0; width: 100%; height: 82vh; border-radius: 18px 18px 0 0; transform: translateY(105%); box-shadow: 0 -8px 24px rgba(16,24,40,.18); }
+    #painel.aberto { transform: none; }
+    .ph { border-radius: 18px 18px 0 0; }
+    .board { padding: 14px; }
+    .board { flex-direction: column; align-items: stretch; gap: 10px; }
+    .col, .col.col-vazia, .col.recolhida { width: auto; flex: none; min-width: 0; }
+    .col-vazia .vazia { display: none; } .col-vazia h3 { margin-bottom: 2px; }
+    .btn { padding: 8px 10px; font-size: 12px; white-space: nowrap; }
+    #lateral { max-height: 30%; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <h1>Obras e Locações · Absolutta</h1>
+  <span class="teste">TESTE</span>
+  <span class="esp"></span>
+  <span class="atual" id="atual"></span>
+  <button class="btn" id="btnTodas">Ver todas as obras</button>
+</header>
+<div id="app">
+  <aside id="lateral">
+    <p class="rotulo">Obras</p>
+    <div id="lista"></div>
+    <div class="legenda">
+      <p class="rotulo">Legenda</p>
+      <div><span class="ponto p-verde"></span>Nada pendente</div>
+      <div><span class="ponto p-laranja"></span>Locação em aberto</div>
+      <div><span class="ponto p-vermelho"></span>NF/boleto pendente há mais de 1 dia, ou boleto vencido / vencendo em até 2 dias</div>
+    </div>
+    <div id="semObra"></div>
+  </aside>
+  <div id="mapa"></div>
+</div>
+<section id="painel" aria-hidden="true">
+  <div class="ph">
+    <div class="tit"><h2 id="pTitulo"></h2><div class="end" id="pEnd"></div><div class="badges" id="pBadges"></div></div>
+    <button class="fechar" id="fechar" title="Fechar">×</button>
+  </div>
+  <div class="board" id="board"></div>
+</section>
+
+<!-- Fonte: planilha "Controle de Locações - Absolutta" (https://docs.google.com/spreadsheets/d/1VNcv3lmd57kTopxYmQb1aE_fBPL4s5D-wSMaduNagAs/edit). Snapshot fixo; para atualizar, rode atualizar_dados.py (protótipo) e copie o JSON. -->
+<!-- Dados gerados por atualizar_dados.py a partir da planilha "Controle de Locações - Absolutta" -->
+<script id="dados" type="application/json">
+{
+ "gerado_em": "19/10/2026 10:36",
+ "obras": [
+  {
+   "id": "carlos",
+   "cliente": "Carlos Bezerra",
+   "endereco": "Rua Virgínia Dalabona, 1202 - Orleans, Curitiba - PR",
+   "lat": -25.4296934,
+   "lng": -49.3633695,
+   "precisao": "número exato",
+   "itens": [
+    {
+     "linha": 3,
+     "item": "Retirada da caçamba em 16/10 à tarde",
+     "locadora": "Ecodetritos",
+     "obra_planilha": "Carlos Bezerra",
+     "data_pedido": "15/10/2026",
+     "data_pedido_iso": "2026-10-15",
+     "conversa": "WhatsApp – Ecodetritos (15/10 12:16)",
+     "nf_boleto": "",
+     "data_baixa": "",
+     "obs": "Ecodetritos não retirou em 16/10; reagendado para 17/10 até 8h. Retirada não confirmada no chat. Sem informação de NF/boleto.",
+     "dias_locado": "",
+     "valor_venc": "",
+     "linha_tempo": [
+      [
+       "Solicitado",
+       ""
+      ],
+      [
+       "Entregue",
+       ""
+      ],
+      [
+       "Retirada solicitada",
+       "15/10/2026"
+      ],
+      [
+       "Retirado",
+       ""
+      ],
+      [
+       "NF/boleto chegou",
+       ""
+      ],
+      [
+       "Enviado ao cliente",
+       ""
+      ]
+     ],
+     "valor": "",
+     "vencimento": "",
+     "vencimento_iso": null,
+     "pago": false
+    },
+    {
+     "linha": 4,
+     "item": "Retirada da betoneira",
+     "locadora": "Elevasul",
+     "obra_planilha": "Carlos Bezerra (Dolabona)",
+     "data_pedido": "15/10/2026",
+     "data_pedido_iso": "2026-10-15",
+     "conversa": "WhatsApp – Francilene Elevasul (15/10 12:14)",
+     "nf_boleto": "",
+     "data_baixa": "",
+     "obs": "Brendon perguntou em 16/10 se a retirada deu certo; resposta só em áudio. Sem informação de NF/boleto.",
+     "dias_locado": "",
+     "valor_venc": "",
+     "linha_tempo": [
+      [
+       "Solicitado",
+       ""
+      ],
+      [
+       "Entregue",
+       ""
+      ],
+      [
+       "Retirada solicitada",
+       "15/10/2026"
+      ],
+      [
+       "Retirado",
+       ""
+      ],
+      [
+       "NF/boleto chegou",
+       ""
+      ],
+      [
+       "Enviado ao cliente",
+       ""
+      ]
+     ],
+     "valor": "",
+     "vencimento": "",
+     "vencimento_iso": null,
+     "pago": false
+    },
+    {
+     "linha": 6,
+     "item": "Rompedor elétrico Hilti TE-1000 + ponteiro e talhadeira – FL 289925, contrato LOC 239890",
+     "locadora": "Elevasul",
+     "obra_planilha": "Carlos Bezerra (Rua Virgínia Dalabona 1202 casa 38, Orleans)",
+     "data_pedido": "",
+     "data_pedido_iso": null,
+     "conversa": "Webmail compras@ (e-mail de 07/10/2026)",
+     "nf_boleto": "Entregue: o General passou NF e boleto para o Carlos",
+     "data_baixa": "19/10/2026",
+     "obs": "Período faturado: 16/09 a 05/10/2026. O encaminhamento ao Egmar em 07/10 voltou (anexo .eml), mas pela regra o Carlos recebe pelo General.",
+     "dias_locado": "",
+     "valor_venc": "R$ 900,00 – venc. 28/10/2026",
+     "linha_tempo": [
+      [
+       "Solicitado",
+       ""
+      ],
+      [
+       "Entregue",
+       ""
+      ],
+      [
+       "Retirada solicitada",
+       ""
+      ],
+      [
+       "Retirado",
+       ""
+      ],
+      [
+       "NF/boleto chegou",
+       "07/10/2026"
+      ],
+      [
+       "Enviado ao cliente",
+       ""
+      ]
+     ],
+     "valor": "R$ 900,00",
+     "vencimento": "28/10/2026",
+     "vencimento_iso": "2026-10-28",
+     "pago": false
+    }
+   ]
+  },
+  {
+   "id": "solon",
+   "cliente": "Solon (Clínica Santa Gianna)",
+   "endereco": "Av. Nossa Senhora da Luz, 2373 - Jardim Social, Curitiba - PR, 82530-010",
+   "lat": -25.4236413,
+   "lng": -49.2414282,
+   "precisao": "número exato",
+   "itens": [
+    {
+     "linha": 7,
+     "item": "Rompedor Makita HM-1213C + ponteiro e talhadeira – FL 290126, contrato LOC 239357",
+     "locadora": "Elevasul",
+     "obra_planilha": "Solon – Clínica Santa Gianna (Av. Nossa Senhora da Luz 2373, Jardim Social)",
+     "data_pedido": "",
+     "data_pedido_iso": null,
+     "conversa": "Webmail compras@ (e-mail de 08/10/2026)",
+     "nf_boleto": "Entregue: o General enviou NF e boleto para a secretária do Solon",
+     "data_baixa": "19/10/2026",
+     "obs": "Período faturado: 27/08 a 27/09/2026. Em 13/10 foi encaminhado também para comercial@.",
+     "dias_locado": "",
+     "valor_venc": "R$ 600,00 – venc. 29/10/2026",
+     "linha_tempo": [
+      [
+       "Solicitado",
+       ""
+      ],
+      [
+       "Entregue",
+       ""
+      ],
+      [
+       "Retirada solicitada",
+       ""
+      ],
+      [
+       "Retirado",
+       ""
+      ],
+      [
+       "NF/boleto chegou",
+       "08/10/2026"
+      ],
+      [
+       "Enviado ao cliente",
+       ""
+      ]
+     ],
+     "valor": "R$ 600,00",
+     "vencimento": "29/10/2026",
+     "vencimento_iso": "2026-10-29",
+     "pago": false
+    }
+   ]
+  },
+  {
+   "id": "clovis",
+   "cliente": "Dr. Clóvis (Serviço de Infectologia / Obra CMSF)",
+   "endereco": "Rua Des. Vieira Cavalcanti, 1089 - Mercês, Curitiba - PR",
+   "lat": -25.4203202,
+   "lng": -49.2888797,
+   "precisao": "número exato",
+   "itens": [
+    {
+     "linha": 2,
+     "item": "Entrega de caçamba para 16/10 às 7h (material de madeira a retirar)",
+     "locadora": "Transdetritos",
+     "obra_planilha": "Dr. Clóvis – Serviço de Infectologia (obra da clínica)",
+     "data_pedido": "15/10/2026",
+     "data_pedido_iso": "2026-10-15",
+     "conversa": "WhatsApp – Transdetritos (15/10 10:07)",
+     "nf_boleto": "",
+     "data_baixa": "",
+     "obs": "Locadora confirmou ('Combinado'). Sem informação de NF/boleto.",
+     "dias_locado": "",
+     "valor_venc": "",
+     "linha_tempo": [
+      [
+       "Solicitado",
+       "15/10/2026"
+      ],
+      [
+       "Entregue",
+       ""
+      ],
+      [
+       "Retirada solicitada",
+       ""
+      ],
+      [
+       "Retirado",
+       ""
+      ],
+      [
+       "NF/boleto chegou",
+       ""
+      ],
+      [
+       "Enviado ao cliente",
+       ""
+      ]
+     ],
+     "valor": "",
+     "vencimento": "",
+     "vencimento_iso": null,
+     "pago": false
+    },
+    {
+     "linha": 11,
+     "item": "Locação de caçamba (madeira R$ 420 + telhas de fibrocimento R$ 230) – NFS-e 3146",
+     "locadora": "Transdetritos",
+     "obra_planilha": "Dr. Clóvis – Serviço de Infectologia (CMFS)",
+     "data_pedido": "",
+     "data_pedido_iso": null,
+     "conversa": "Webmail compras@ (e-mail 'Fatura' de 06/10/2026)",
+     "nf_boleto": "Entregue: a Transdetritos enviou direto para o egmar@",
+     "data_baixa": "19/10/2026",
+     "obs": "Vence em 20/10/2026.",
+     "dias_locado": "",
+     "valor_venc": "R$ 650,00 – venc. 20/10/2026",
+     "linha_tempo": [
+      [
+       "Solicitado",
+       ""
+      ],
+      [
+       "Entregue",
+       ""
+      ],
+      [
+       "Retirada solicitada",
+       ""
+      ],
+      [
+       "Retirado",
+       ""
+      ],
+      [
+       "NF/boleto chegou",
+       "06/10/2026"
+      ],
+      [
+       "Enviado ao cliente",
+       "06/10/2026"
+      ]
+     ],
+     "valor": "R$ 650,00",
+     "vencimento": "20/10/2026",
+     "vencimento_iso": "2026-10-20",
+     "pago": false
+    }
+   ]
+  },
+  {
+   "id": "deterlimp",
+   "cliente": "Deterlimp",
+   "endereco": "Av. das Cerejeiras, 619 - Capela Velha, Araucária - PR, 83705-340",
+   "lat": -25.5580835,
+   "lng": -49.3924825,
+   "precisao": "aproximada (só a avenida)",
+   "itens": [
+    {
+     "linha": 8,
+     "item": "Betoneira 400L Menegotti + esmerilhadeira angular 7\" – FL 290348, contrato LOC 231056",
+     "locadora": "Elevasul",
+     "obra_planilha": "Deterlimp (Araucária)",
+     "data_pedido": "",
+     "data_pedido_iso": null,
+     "conversa": "Webmail compras@ (e-mail de 13/10/2026)",
+     "nf_boleto": "Entregue: a Elevasul enviou direto para o egmar@",
+     "data_baixa": "19/10/2026",
+     "obs": "Período faturado: 02/09 a 02/10/2026.",
+     "dias_locado": "",
+     "valor_venc": "R$ 500,00 – venc. 03/11/2026",
+     "linha_tempo": [
+      [
+       "Solicitado",
+       ""
+      ],
+      [
+       "Entregue",
+       ""
+      ],
+      [
+       "Retirada solicitada",
+       ""
+      ],
+      [
+       "Retirado",
+       ""
+      ],
+      [
+       "NF/boleto chegou",
+       "13/10/2026"
+      ],
+      [
+       "Enviado ao cliente",
+       "13/10/2026"
+      ]
+     ],
+     "valor": "R$ 500,00",
+     "vencimento": "03/11/2026",
+     "vencimento_iso": "2026-11-03",
+     "pago": false
+    },
+    {
+     "linha": 9,
+     "item": "Abraçadeira GC, caçamba GC (peça) e guincho de coluna – FL 290165, contrato LOC 231194",
+     "locadora": "Elevasul",
+     "obra_planilha": "Deterlimp (Araucária)",
+     "data_pedido": "",
+     "data_pedido_iso": null,
+     "conversa": "Webmail compras@ (e-mail de 14/10/2026)",
+     "nf_boleto": "Entregue: a Elevasul enviou direto para o egmar@",
+     "data_baixa": "19/10/2026",
+     "obs": "",
+     "dias_locado": "",
+     "valor_venc": "R$ 310,00 – venc. 30/10/2026",
+     "linha_tempo": [
+      [
+       "Solicitado",
+       ""
+      ],
+      [
+       "Entregue",
+       ""
+      ],
+      [
+       "Retirada solicitada",
+       ""
+      ],
+      [
+       "Retirado",
+       ""
+      ],
+      [
+       "NF/boleto chegou",
+       "14/10/2026"
+      ],
+      [
+       "Enviado ao cliente",
+       "14/10/2026"
+      ]
+     ],
+     "valor": "R$ 310,00",
+     "vencimento": "30/10/2026",
+     "vencimento_iso": "2026-10-30",
+     "pago": false
+    },
+    {
+     "linha": 10,
+     "item": "Locações de setembro: 2 caçambas + descarte de gesso/lixo + diárias – NFS-e 3060",
+     "locadora": "Transdetritos",
+     "obra_planilha": "Deterlimp (Araucária)",
+     "data_pedido": "",
+     "data_pedido_iso": null,
+     "conversa": "Webmail compras@ (e-mail 'fechamento' de 02/10/2026)",
+     "nf_boleto": "Entregue: a Transdetritos enviou com o egmar@ em cópia",
+     "data_baixa": "19/10/2026",
+     "obs": "Diárias de 08/09 a 18/09. Vencimento já passou; confirmar o pagamento. CUIDADO: o e-mail de 01/10 de transdetritos@xpertionmail.com.br sobre a NF 3060 é suspeito de golpe.",
+     "dias_locado": "",
+     "valor_venc": "R$ 1.340,00 – venc. 10/10/2026",
+     "linha_tempo": [
+      [
+       "Solicitado",
+       ""
+      ],
+      [
+       "Entregue",
+       ""
+      ],
+      [
+       "Retirada solicitada",
+       ""
+      ],
+      [
+       "Retirado",
+       ""
+      ],
+      [
+       "NF/boleto chegou",
+       "02/10/2026"
+      ],
+      [
+       "Enviado ao cliente",
+       "02/10/2026"
+      ]
+     ],
+     "valor": "R$ 1.340,00",
+     "vencimento": "10/10/2026",
+     "vencimento_iso": "2026-10-10",
+     "pago": false
+    }
+   ]
+  }
+ ],
+ "nao_mapeadas": [],
+ "excluidas": [
+  {
+   "linha": 5,
+   "item": "Locação (entrega) de betoneira 400L 110v",
+   "obra_planilha": "Carlos Bezerra",
+   "motivo": "Observações dizem cancelada"
+  }
+ ]
+}
+</script>
+
+<script>
+const DADOS = JSON.parse(document.getElementById('dados').textContent);
+const HOJE = new Date(); HOJE.setHours(0, 0, 0, 0);
+const COLUNAS = ['Solicitado', 'Na obra', 'Retirada solicitada', 'Aguardando NF/boleto', 'Concluído'];
+const COR = { verde: '#16a34a', laranja: '#ea7c0c', vermelho: '#dc2626' };
+
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+const iso = t => { const m = /^(\d{2})\/(\d{2})\/(\d{4})$/.exec((t || '').trim()); return m ? `${m[3]}-${m[2]}-${m[1]}` : null; };
+const diasEntre = i => { if (!i) return null; const [a, m, d] = i.split('-').map(Number); return Math.round((HOJE - new Date(a, m - 1, d)) / 864e5); };
+const curta = t => (t && /^\d{2}\/\d{2}/.test(t)) ? t.slice(0, 5) : (t ? esc(t) : '—');
+const passo = (it, n) => (it.linha_tempo || [])[n]?.[1] || '';
+
+// item curto: tira contrato e detalhes longos
+function itemCurto(t) {
+  t = (t || '').replace(/,?\s*contrato\s+LOC\s*\d+/i, '').trim();
+  if (t.length > 40) t = t.replace(/\s*\([^)]*\)\s*$/, '').trim();
+  return t || 'não identificado';
+}
+function dataPedido(it) { return it.data_pedido || passo(it, 0) || passo(it, 2) || ''; }
+
+function coluna(it) {
+  if (it.data_baixa) return 'Concluído';
+  if (passo(it, 3) || passo(it, 4) || it.nf_boleto) return 'Aguardando NF/boleto';
+  if (passo(it, 2)) return 'Retirada solicitada';
+  if (passo(it, 1)) return 'Na obra';
+  return 'Solicitado';
+}
+function alertaBoleto(it) {
+  if (!it.vencimento_iso || it.pago) return null;
+  const f = -diasEntre(it.vencimento_iso);
+  if (f < 0) return `Vencido há ${-f} dia${-f > 1 ? 's' : ''}`;
+  if (f === 0) return 'Vence hoje';
+  if (f <= 2) return f === 1 ? 'Vence amanhã' : `Vence em ${f} dias`;
+  return null;
+}
+function nfPendente(it) {
+  if (it.data_baixa || it.nf_boleto || passo(it, 4)) return false;
+  const d = diasEntre(iso(dataPedido(it)));
+  return d !== null && d > 1;
+}
+function corItem(it) {
+  if (nfPendente(it) || alertaBoleto(it)) return 'vermelho';
+  return it.data_baixa ? 'verde' : 'laranja';
+}
+function corObra(o) {
+  const c = o.itens.map(corItem);
+  return c.includes('vermelho') ? 'vermelho' : c.includes('laranja') ? 'laranja' : 'verde';
+}
+
+function cardHtml(it, mostrarCliente) {
+  const cor = corItem(it), ab = alertaBoleto(it);
+  const dPed = diasEntre(iso(dataPedido(it)));
+  const chips = [];
+  if (ab) chips.push(`<span class="chip vermelho">${esc(ab)}</span>`);
+  const dTxt = dPed === null ? '' : ` · ${dPed} dia${dPed === 1 ? '' : 's'}`;
+  if (nfPendente(it)) chips.push(`<span class="chip vermelho">Sem NF/boleto${dTxt}</span>`);
+  else if (!it.data_baixa && dPed !== null) chips.push(`<span class="chip laranja">há ${dPed} dia${dPed === 1 ? '' : 's'}</span>`);
+  if (it.dias_locado) chips.push(`<span class="chip">${esc(it.dias_locado)} dias locado</span>`);
+  if (it.valor) chips.push(`<span class="chip">${esc(it.valor)}</span>`);
+  if (it.vencimento) chips.push(`<span class="chip">venc. ${curta(it.vencimento)}</span>`);
+  const obs = [itemCurto(it.item) !== it.item ? it.item : '', it.obs, it.nf_boleto, it.conversa].filter(Boolean);
+  return `<div class="card c-${cor}">
+    ${mostrarCliente ? `<span class="tag-cli">${esc(it._cliente)}</span>` : ''}
+    <div class="item">${esc(itemCurto(it.item))}</div>
+    <div class="loc">${it.locadora ? esc(it.locadora) : 'Locadora não identificada'}</div>
+    <div class="datas">
+      <div><small>Pedido</small>${curta(dataPedido(it))}</div><div><small>Entregue</small>${curta(passo(it, 1))}</div><div><small>Retirado</small>${curta(passo(it, 3))}</div>
+      <div><small>NF</small>${curta(passo(it, 4))}</div><div><small>Enviado</small>${curta(passo(it, 5))}</div><div></div>
+    </div>
+    ${chips.length ? `<div class="chips">${chips.join('')}</div>` : ''}
+    ${obs.length ? `<details class="det"><summary>detalhes</summary>${obs.map(o => `<p>${esc(o)}</p>`).join('')}</details>` : ''}
+  </div>`;
+}
+
+let concluidoAberto = false, vistaAtual = null;
+function renderBoard(itens, mostrarCliente) {
+  const board = document.getElementById('board');
+  board.innerHTML = COLUNAS.map(c => {
+    const lista = itens.filter(it => coluna(it) === c);
+    if (c === 'Concluído' && !concluidoAberto) {
+      return `<div class="col recolhida"><h3>${c}<span class="n">${lista.length}</span></h3>
+        <button class="expandir" onclick="concluidoAberto=true;renderBoard(vistaAtual.itens, vistaAtual.cli)">${lista.length ? `Mostrar ${lista.length}` : 'Nenhum'}</button></div>`;
+    }
+    const extra = c === 'Concluído' ? `<button class="expandir" style="margin-bottom:8px" onclick="concluidoAberto=false;renderBoard(vistaAtual.itens, vistaAtual.cli)">Recolher</button>` : '';
+    return `<div class="col${lista.length ? '' : ' col-vazia'}"><h3>${c}<span class="n">${lista.length}</span></h3>${extra}
+      ${lista.length ? lista.map(it => cardHtml(it, mostrarCliente)).join('') : '<div class="vazia">—</div>'}</div>`;
+  }).join('');
+}
+function badges(itens) {
+  const b = [];
+  const abertos = itens.filter(i => !i.data_baixa).length;
+  b.push(`<span class="chip ${abertos ? 'laranja' : 'verde'}">${abertos ? `${abertos} em aberto` : 'Nada em aberto'}</span>`);
+  const semNf = itens.filter(nfPendente).length;
+  if (semNf) b.push(`<span class="chip vermelho">${semNf} sem NF/boleto há +1 dia</span>`);
+  for (const it of itens) { const a = alertaBoleto(it); if (a) b.push(`<span class="chip vermelho">Boleto ${esc(it.valor || '')}: ${esc(a.toLowerCase())}</span>`); }
+  return b.join('');
+}
+function abrirPainel(titulo, end, itens, mostrarCliente) {
+  vistaAtual = { itens, cli: mostrarCliente }; concluidoAberto = false;
+  document.getElementById('pTitulo').textContent = titulo;
+  document.getElementById('pEnd').textContent = end;
+  document.getElementById('pBadges').innerHTML = badges(itens);
+  renderBoard(itens, mostrarCliente);
+  const p = document.getElementById('painel'); p.classList.add('aberto'); p.setAttribute('aria-hidden', 'false');
+}
+function fecharPainel() {
+  document.getElementById('painel').classList.remove('aberto');
+  document.querySelectorAll('.cli').forEach(e => e.classList.remove('ativo'));
+}
+
+// mapa
+const mapa = L.map('mapa', { zoomControl: true });
+L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', { maxZoom: 19,
+  attribution: '&copy; colaboradores do <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>' }).addTo(mapa);
+
+const obras = DADOS.obras || [];
+obras.forEach(o => o.itens.forEach(it => it._cliente = o.cliente.split(' (')[0]));
+const pontos = [];
+function abrirObra(o) {
+  document.querySelectorAll('.cli').forEach(e => e.classList.toggle('ativo', e.dataset.id === o.id));
+  const mobile = window.innerWidth <= 760;
+  mapa.setView([o.lat, o.lng], 15, { animate: false });
+  const r = document.getElementById('mapa').getBoundingClientRect();
+  const pw = document.getElementById('painel').offsetWidth;
+  if (mobile) mapa.panBy([0, r.height * 0.3], { animate: false });
+  else { const livre = Math.max(r.width - pw, 0); mapa.panBy([r.width / 2 - livre / 2, 0], { animate: false }); }
+  const end = o.endereco + (o.precisao && o.precisao !== 'número exato' ? ` · localização ${o.precisao}` : '');
+  abrirPainel(o.cliente, end, o.itens, false);
+}
+for (const o of obras) {
+  const cor = corObra(o);
+  L.marker([o.lat, o.lng], { title: o.cliente, icon: L.divIcon({ className: '', iconSize: [22, 22], iconAnchor: [11, 11],
+    html: `<div class="marca" style="background:${COR[cor]}"></div>` }) })
+    .addTo(mapa).bindTooltip(o.cliente.split(' (')[0], { direction: 'top', offset: [0, -12] }).on('click', () => abrirObra(o));
+  pontos.push([o.lat, o.lng]);
+  const abertos = o.itens.filter(i => !i.data_baixa).length;
+  const al = o.itens.map(alertaBoleto).filter(Boolean);
+  const b = document.createElement('button'); b.className = 'cli'; b.dataset.id = o.id;
+  b.innerHTML = `<span class="ponto p-${cor}"></span><span><div class="nome">${esc(o.cliente)}</div>
+    <div class="info">${abertos ? `${abertos} em aberto` : 'Nada em aberto'}${al.length ? ' · boleto ' + esc(al[0].toLowerCase()) : ''}</div></span>`;
+  b.onclick = () => abrirObra(o);
+  document.getElementById('lista').appendChild(b);
+}
+if (pontos.length) mapa.fitBounds(pontos, { padding: [60, 60] }); else mapa.setView([-25.43, -49.27], 11);
+
+document.getElementById('btnTodas').onclick = () => {
+  document.querySelectorAll('.cli').forEach(e => e.classList.remove('ativo'));
+  abrirPainel('Todas as obras', `${obras.length} obras · Curitiba e região`, obras.flatMap(o => o.itens), true);
+  const pw = document.getElementById('painel').offsetWidth;
+  if (window.innerWidth > 760) mapa.fitBounds(pontos, { paddingTopLeft: [40, 40], paddingBottomRight: [pw + 40, 40], animate: false });
+};
+document.getElementById('fechar').onclick = fecharPainel;
+document.addEventListener('keydown', e => { if (e.key === 'Escape') fecharPainel(); });
+
+document.getElementById('atual').textContent = DADOS.gerado_em ? `Planilha lida em ${DADOS.gerado_em}` : '';
+if ((DADOS.nao_mapeadas || []).length) {
+  document.getElementById('semObra').innerHTML = `<div class="aviso"><b>Sem obra identificada:</b><br>` +
+    DADOS.nao_mapeadas.map(r => `Linha ${r.linha}: ${esc(itemCurto(r.item))}`).join('<br>') + `</div>`;
+}
+window.abrirObraId = id => abrirObra(obras.find(o => o.id === id));
+window.abrirTodas = () => document.getElementById('btnTodas').click();
+</script>
+</body>
+</html>
